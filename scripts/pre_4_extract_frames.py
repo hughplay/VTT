@@ -7,12 +7,11 @@ import cv2
 import jsonlines
 import ray
 from ray.util.queue import Queue
-from sh import ffmpeg, ffprobe
 
 sys.path.append(".")
 from src.utils.raytool import ProgressBar  # noqa: E402
 
-VTT_ROOT = Path("/data/reason/vtt")
+VTT_ROOT = Path("/data/vtt")
 N_CPU_PER_THREAD = 8
 FRAME_EXT = ".jpg"
 
@@ -23,6 +22,8 @@ FRAME_EXT = ".jpg"
 
 
 def get_frame_count(clip_path):
+    from sh import ffprobe
+
     output = ffprobe(
         "-v",
         "error",
@@ -94,6 +95,8 @@ def save_frames_opencv(clip_path, save_root, resolution, logger=None):
 
 
 def save_frames_ffmpeg(clip_path, save_root, resolution):
+    from sh import ffmpeg
+
     save_root = Path(save_root)
 
     # remove all images from save_root
@@ -229,7 +232,7 @@ def generate_frames(jobs, completed_queue, args, actor=None):
 
 
 # =============================================================================
-# main funciton
+# main function
 # =============================================================================
 
 
@@ -307,7 +310,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-l",
         "--list",
-        default=VTT_ROOT / "meta" / "vtt.jsonl",
+        default=VTT_ROOT / "meta" / "vtt_pre.jsonl",
         help="vtt list",
     )
     parser.add_argument(

@@ -4,14 +4,19 @@ import time
 logger = logging.getLogger(__name__)
 
 
-def time2str(time_used):
-    gaps = [
+def time2str(time_used, units=["days", "h", "min", "s", "ms"]):
+    default_gaps = [
         ("days", 86400000),
         ("h", 3600000),
         ("min", 60000),
         ("s", 1000),
         ("ms", 1),
     ]
+    gaps = []
+    for gap in default_gaps:
+        if gap[0] in units:
+            gaps.append(gap)
+
     time_used *= 1000
     time_str = []
     for unit, gap in gaps:

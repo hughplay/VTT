@@ -18,26 +18,28 @@ omegaconf==2.1.0
 # Logging
 # =============================================
 wandb
+loguru
 
 # =============================================
 # Common Used Tools
 # =============================================
-# einops
+einops
 pandas
-# openpyxl==3.0.10
-# matplotlib==3.5.2
-# scikit-learn==1.1.1
+openpyxl
+matplotlib
+scikit-learn
 
 # =============================================
 # Computer Vision
 # =============================================
-# opencv-python
+opencv-python
 
 # =============================================
 # Nautral Language Processing
 # =============================================
-# transfomers
-# spacy           # for text preprocessing
+transformers
+spacy           # for text preprocessing
+ftfy
 
 # =============================================
 # Utils
@@ -46,10 +48,11 @@ python-dotenv   # loading env variables from .env file
 rich            # beautiful text formatting in terminal
 pytest          # tests
 sh              # for running bash commands in some tests
-# ipython         # convenient interactive shell
-# jupyterlab      # JupyterLab to run Jupyter Notebooks
-# jsonlines       # for reading and writing jsonl files
-# ray             # for distributed running of tasks
+ipython         # convenient interactive shell
+jupyterlab      # JupyterLab to run Jupyter Notebooks
+ipywidgets
+jsonlines       # for reading and writing jsonl files
+ray             # for distributed running of tasks
 # gpustat         # for getting GPU usage
 
 # =============================================

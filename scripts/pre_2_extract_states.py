@@ -7,11 +7,11 @@ import cv2
 import jsonlines
 import ray
 from ray.util.queue import Queue
-from sh import ffmpeg, ffprobe
 
-from src.utils.raytool import ProgressBar
+sys.path.append(".")
+from src.utils.raytool import ProgressBar  # noqa: E402
 
-VTT_ROOT = Path("/data/reason/vtt")
+VTT_ROOT = Path("/data/vtt")
 N_CPU_PER_THREAD = 8
 
 
@@ -40,6 +40,8 @@ def get_resized_width_height(resolution, width, height):
 
 # only used when opencv failed
 def save_frame_ffmpeg(video_path, save_path, time, resolution):
+    from sh import ffmpeg
+
     output = ffmpeg(
         "-y",
         "-i",
@@ -59,6 +61,8 @@ def save_frame_ffmpeg(video_path, save_path, time, resolution):
 
 
 def get_duration(video_path):
+    from sh import ffprobe
+
     duration = ffprobe(
         "-v",
         "error",
@@ -254,7 +258,7 @@ def generate_states(jobs, completed_queue, args, actor=None):
 
 
 # =============================================================================
-# main funciton
+# main function
 # =============================================================================
 
 
@@ -332,7 +336,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-l",
         "--list",
-        default=VTT_ROOT / "meta" / "vtt.jsonl",
+        default=VTT_ROOT / "meta" / "vtt_pre.jsonl",
         help="vtt list",
     )
     parser.add_argument(

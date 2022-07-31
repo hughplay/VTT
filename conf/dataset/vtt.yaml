@@ -1,0 +1,35 @@
+_target_: src.dataset.vtt.VTTDataModule
+
+batch_size: 32
+num_workers: 16
+pin_memory: true
+
+dataset_cfg:
+  train:
+    data_root: "/data/vtt"
+    meta_path: "meta/vtt.jsonl"
+    state_root: "states"
+    frame_root: "frames"
+    load_trans_frames: true
+    n_segment: 3
+    frames_per_segment: 1
+  eval:
+    data_root: ${..train.data_root}
+    meta_path: ${..train.meta_path}
+    state_root: ${..train.state_root}
+    frame_root: ${..train.frame_root}
+    load_trans_frames: false
+    n_segment: ${..train.n_segment}
+    frames_per_segment: ${..train.frames_per_segment}
+
+transform_cfg:
+  train:
+    n_px: 224
+    resize: true
+    random_crop: true
+    random_hflip: true
+  eval:
+    n_px: ${..train.n_px}
+    resize: false
+    random_crop: false
+    random_hflip: false

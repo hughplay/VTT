@@ -8,6 +8,12 @@
 
 FROM deepbase/project:codebase
 
+# TUNA Mirror (optional)
+COPY misc/sources.list.ubuntu20.04 /etc/apt/sources.list
+RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # ==================================================
 # Install python packages
@@ -22,6 +28,8 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt \
     && rm -f /tmp/requirements.txt
 
+# Install spacy models
+RUN python -m spacy download en_core_web_sm
 
 # Another way is installing packages from a `env.yaml` with conda.
 # COPY env.yaml /tmp/env.yaml

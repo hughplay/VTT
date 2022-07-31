@@ -1,10 +1,8 @@
 import argparse
 import sys
 from collections import defaultdict
-from itertools import chain
 from pathlib import Path
 
-import cv2
 import jsonlines
 import ray
 from ray.util.queue import Queue
@@ -13,7 +11,7 @@ from sh import ffmpeg
 sys.path.append(".")
 from src.utils.raytool import ProgressBar  # noqa: E402
 
-VTT_ROOT = Path("/data/reason/vtt")
+VTT_ROOT = Path("/data/vtt")
 N_CPU_PER_THREAD = 8
 
 
@@ -132,7 +130,7 @@ def generate_clips(jobs, completed_queue, args, actor=None):
 
 
 # =============================================================================
-# main funciton
+# main function
 # =============================================================================
 
 
@@ -210,7 +208,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-l",
         "--list",
-        default=VTT_ROOT / "meta" / "vtt.jsonl",
+        default=VTT_ROOT / "meta" / "vtt_pre.jsonl",
         help="vtt list",
     )
     parser.add_argument(

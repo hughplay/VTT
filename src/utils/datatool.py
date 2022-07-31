@@ -1,6 +1,7 @@
 import json
 import pickle as pkl
 from pathlib import Path
+from typing import Callable
 
 import jsonlines
 
@@ -39,6 +40,10 @@ def write_jsonlines(path, samples):
         writer.write_all(samples)
 
 
+def list2dict(_list, key: str):
+    return {item[key]: item for item in _list}
+
+
 def read_json(path):
     with open(path) as f:
         data = json.load(f)
@@ -73,3 +78,39 @@ def write_pickle(path, obj):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as fd:
         pkl.dump(obj=obj, file=fd)
+
+
+class JSONLList:
+    def __init__(self, jsonl_path, filter_func: Callable = None):
+        self.samples = read_jsonlines(jsonl_path)
+
+        if filter is not None:
+            self.samples = [
+                sample for sample in self.samples if filter(filter_func, sample)
+            ]
+        self.sample_dict = {sample["id"]: sample for sample in self.samples}
+
+    def save(self, path, force=False):
+        if not force:
+            assert not Path(path).is_file()
+        write_jsonlines(path, self.samples)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __iter__(self):
+        return self.samples.__iter__()
+
+    def __contains__(self, idx):
+        return idx in self.sample_dict
+
+    def __getitem__(self, idx):
+        if type(idx) == int:
+            return self.samples[idx]
+        elif type(idx) == str:
+            return self.sample_dict[idx]
+        elif type(idx) == slice:
+            return self.samples[idx]
+        else:
+            print(idx, type(idx))
+            raise TypeError

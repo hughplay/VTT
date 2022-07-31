@@ -1,6 +1,6 @@
 # DeepCodebase
 
-Official repository for ["DeepCodebase for Deep Learning"](https://github.com/hughplay/DeepCodebase).
+Official repository for ["Visual Transformation Telling"](https://github.com/hughplay/VTT).
 
 ![A fancy image here](docs/_static/imgs/logo.svg)
 

@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - dataset: mnist
+  - dataset: vtt
   - pipeline: classification
   - model: lenet
   - criterion: classification

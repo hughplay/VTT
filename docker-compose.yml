@@ -13,7 +13,8 @@ services:
     image: ${PROJECT}:${USER_NAME}
     environment:
       - TZ=Asia/Shanghai
-      - TORCH_HOME=/data/torch_model
+      - TORCH_HOME=/data/pretrain/torch
+      - TRANSFORMERS_CACHE=/data/pretrain/transformers
 
     hostname: docker
 

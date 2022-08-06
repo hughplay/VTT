@@ -19,8 +19,8 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
-      - id: check-added-large-files
-        args: ["--maxkb=1500"]
+      # - id: check-added-large-files
+      #   args: ["--maxkb=1500"]
       - id: debug-statements
       - id: detect-private-key
 
@@ -59,7 +59,7 @@ repos:
       - id: flake8
 
   # jupyter notebook cell output clearing
-  - repo: https://github.com/kynan/nbstripout
-    rev: 0.5.0
-    hooks:
-      - id: nbstripout
+  # - repo: https://github.com/kynan/nbstripout
+  #   rev: 0.5.0
+  #   hooks:
+  #     - id: nbstripout

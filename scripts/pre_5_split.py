@@ -67,7 +67,7 @@ def integrate_information():
 
     logger.info(f"samples after filtering: {len(filter_samples)}")
     dtool.write_jsonlines(VTT_ROOT / "vtt_integrated.jsonl", filter_samples)
-    return samples
+    return filter_samples
 
 
 def split_samples(samples):
@@ -90,6 +90,7 @@ def split_samples(samples):
     train_samples = [s for s in samples if s["split"] == "train"]
     val_samples = [s for s in samples if s["split"] == "val"]
     test_samples = [s for s in samples if s["split"] == "test"]
+    logger.info(f"total: {len(samples)}")
     logger.info(f"train: {len(train_samples)}")
     logger.info(f"val: {len(val_samples)}")
     logger.info(f"test: {len(test_samples)}")

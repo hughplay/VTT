@@ -33,12 +33,14 @@ scikit-learn
 # Computer Vision
 # =============================================
 opencv-python
+pycocoevalcap
 
 # =============================================
 # Nautral Language Processing
 # =============================================
 transformers
-spacy           # for text preprocessing
+spacy
+nltk
 ftfy
 
 # =============================================
@@ -50,6 +52,7 @@ pytest          # tests
 sh              # for running bash commands in some tests
 ipython         # convenient interactive shell
 jupyterlab      # JupyterLab to run Jupyter Notebooks
+jupyterlab-vim  # use vim key bindings in JupyterLab
 ipywidgets
 jsonlines       # for reading and writing jsonl files
 ray             # for distributed running of tasks

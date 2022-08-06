@@ -1,6 +1,9 @@
 ## TODO
 
 - [ ] ?Retrain tokenizer
+- [ ] lmdb, run out of inodes, sad, too much small files
+    - [ ] writing frames & into lmdb
+    - [ ] lmdb dataloader
 
 ## Currently Working
 
@@ -11,6 +14,32 @@
   - dense video captioning
 - [ ] implement a baseline model
     - [ ] design baseline models
+    - encoder:
+        - CNN + Bi-LSTM/GRU
+        - Graph Network
+        - KB enriched, ConceptNet
+    - decoder
+        - BART
+        - position embedding: the decoder should know the position of transformation in the whole story, near start or near end
+   - loss
+        - label smoothing loss
+    - length difference position embedding (KG-Story)
+    - generation
+        - Repetition Penalty (KG-Story)
+- [ ] metrics
+    - VIST:
+      - METEOR
+      - smoothed-BLEU (Lin and Och, 2004)
+      - Skip-Thoughts (Kiros et al., 2015)
+    - final list, read these papers
+        - [] METEOR
+        - [] BLUE-4
+        - [] CIDEr
+        - [] ROUGE_L
+        - [] BERTScore
+    - question: transformation-wise or sample-wise evaluation?
+
+
 
 ## 2022-08-01 01:20:02
 

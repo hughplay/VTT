@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 def register_omegaconf_resolver():
-    OmegaConf.register_new_resolver("tail", lambda x: x.split(".")[-1])
+    OmegaConf.register_new_resolver(
+        "tail", lambda x: x.split(".")[-1], replace=True
+    )
 
 
 @rank_zero_only

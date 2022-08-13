@@ -59,7 +59,8 @@ repos:
       - id: flake8
 
   # jupyter notebook cell output clearing
-  # - repo: https://github.com/kynan/nbstripout
-  #   rev: 0.5.0
-  #   hooks:
-  #     - id: nbstripout
+  # long jupyter notebook files will dominate the result of languages
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.5.0
+    hooks:
+      - id: nbstripout

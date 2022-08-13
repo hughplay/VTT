@@ -101,7 +101,8 @@ def prepare_parser():
 
 
 def main(args):
-    _set_env(verbose=(args.action == "preapre"))
+    _set_env(verbose=(args.action == "prepare"))
+    _prepare_mount_files()
 
     service_name = "project"
     if args.action == "prepare":
@@ -178,6 +179,13 @@ def _set_env(env_path=DEFAULT_ENV_PATH, verbose=False):
     if verbose:
         print(f"Your setting ({env_path}):\n{e}")
     return e
+
+
+def _prepare_mount_files():
+    PATH_ZSH_HISTORY = Path("./docker/misc/.zsh_history")
+    if not PATH_ZSH_HISTORY.exists():
+        PATH_ZSH_HISTORY.touch()
+        print(f"{PATH_ZSH_HISTORY} is created.")
 
 
 if __name__ == "__main__":

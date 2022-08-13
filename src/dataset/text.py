@@ -103,6 +103,9 @@ class SimpleTokenizer(object):
         self.end_idx = self.encoder[self.end_tok]
         self.pad_idx = self.encoder[self.pad_tok]
 
+    def __len__(self):
+        return len(self.encoder)
+
     def bpe(self, token):
         if token in self.cache:
             return self.cache[token]

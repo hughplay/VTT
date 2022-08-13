@@ -3,6 +3,7 @@
 log/
 data/
 conf/local/default.yaml
+docker/misc/.zsh_history
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

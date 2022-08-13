@@ -1,19 +1,91 @@
 ## TODO
 
+- proposals:
+  - [ ] add stage position embedding
 - [ ] ?Retrain tokenizer
-- [ ] lmdb, run out of inodes, sad, too much small files
+- [ ] compare vist and vtt samples
+- Visualize heatmap
+    - pytorch-grad-cam: https://github.com/jacobgil/pytorch-grad-cam
+    - torch-cam: https://github.com/frgfm/torch-cam
+    - https://github.com/ml-tooling/best-of-ml-python#model-interpretability
+        - https://github.com/slundberg/shap#deep-learning-example-with-gradientexplainer-tensorflowkeraspytorch-models
+- ffcv looks awesome
+    - https://github.com/libffcv/ffcv
+    - see this from: https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
+- [ ] optimization for variable length transformations
+Discarded:
+- [ ] ~~lmdb, run out of inodes, sad, too much small files~~
     - [ ] writing frames & into lmdb
     - [ ] lmdb dataloader
+    - unless we need to use video frames after
 
 ## Currently Working
 
-- [ ] compare vist and vtt samples
-- methods research, three major directions
+- [ ] let's unify common used names:
+    - `images`
+    - `features`
+    - `context`
+- baseline models
+    - [ ] GLACNet
+    - [ ] CST (Contextualize, Show, and Tell)
+    - [ ] TTNet naive (ours)
+- [ ] decoder inference
+    - sampling
+        - greedy
+        - beam search
+            - https://github.com/budzianowski/PyTorch-Beam-Search-Decoding/blob/master/decode_beam.py
+        - top_k top_p
+- [ ] dataloader: arguments to decide whether add <start> and <end>
+- [ ] check overall models
+    - [ ] check masking
+
+## 2022-08-13 15:48:01
+
+- [x] decoder forward
+    - LSTM decoder
+        - Contextualize
+        - glocal
+    - Transformer
+    - unit testing
+- [x] break model into parts
+    - image encoder API
+    - context encoder
+    - text decoder
+
+## 2022-08-12 10:43:47
+
+- [x] context encoder API
+    - biLSTM, pack_padded_sequence
+        - question is how biLSTM handle padded sequences
+        - https://towardsdatascience.com/taming-lstms-variable-sized-mini-batches-and-why-pytorch-is-good-for-your-health-61d35642972e
+        - https://suzyahyah.github.io/pytorch/2019/07/01/DataLoader-Pad-Pack-Sequence.html
+    - [x] simple_lstm (Contextualize, Show, and Tell)
+    - [x] glocal
+    - [x] transformer
+        - add classical fixed positional embedding to x_transformers, for future comparison
+        - all position embeddings
+            - fixed
+            - absolute
+            - infused fixed
+            - simplified relative (T5)
+    - [x] testing
+
+## 2022-08-10 10:21:21
+
+- [x] image encoder API
+    - resnet
+    - inception_v3
+    - clip models
+    - dim agnostic encode
+- [x] test all models on cpu gpu
+
+## 2022-08-07 13:53:06
+
+- [x] methods research, three major directions
   - visual storytelling
   - Open-domain Dialogue Generation
   - dense video captioning
-- [ ] implement a baseline model
-    - [ ] design baseline models
+- [x] design baseline models
     - encoder:
         - CNN + Bi-LSTM/GRU
         - Graph Network
@@ -26,18 +98,19 @@
     - length difference position embedding (KG-Story)
     - generation
         - Repetition Penalty (KG-Story)
-- [ ] metrics
+- [x] metrics
     - VIST:
       - METEOR
       - smoothed-BLEU (Lin and Och, 2004)
       - Skip-Thoughts (Kiros et al., 2015)
     - final list, read these papers
-        - [] METEOR
-        - [] BLUE-4
-        - [] CIDEr
-        - [] ROUGE_L
-        - [] BERTScore
+        - [x] METEOR
+        - [x] BLUE-4: n-gram matching, modified
+        - [x] CIDEr: TF-IDF as vector, cosine similarity
+        - [x] ROUGE_L
+        - [x] BERTScore: word embedding similarity, full pair-wise
     - question: transformation-wise or sample-wise evaluation?
+        - transformation-wise for now
 
 
 

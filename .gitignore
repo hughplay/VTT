@@ -1,4 +1,5 @@
 # Project
+*.onnx
 .vscode/
 log/
 data/

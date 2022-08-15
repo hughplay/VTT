@@ -10,7 +10,11 @@ dataset_cfg:
     meta_path: "meta/vtt.jsonl"
     state_root: "states"
     frame_root: "frames"
-    load_trans_frames: true
+    max_transformations: 12
+    max_words: 24
+    prefix_start: true
+    suffix_end: true
+    load_trans_frames: false
     n_segment: 3
     frames_per_segment: 1
   eval:
@@ -18,6 +22,10 @@ dataset_cfg:
     meta_path: ${..train.meta_path}
     state_root: ${..train.state_root}
     frame_root: ${..train.frame_root}
+    max_transformations: ${..train.max_transformations}
+    max_words: ${..train.max_words}
+    prefix_start: ${..train.prefix_start}
+    suffix_end: ${..train.suffix_end}
     load_trans_frames: false
     n_segment: ${..train.n_segment}
     frames_per_segment: ${..train.frames_per_segment}

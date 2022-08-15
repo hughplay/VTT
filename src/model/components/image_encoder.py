@@ -32,13 +32,15 @@ from src.model.components.clip import clip
 
 logger = logging.getLogger(__name__)
 
+# fmt: off
 _MODELS = {
     "resnet": ["resnet18", "resnet34", "resnet50", "resnet101", "resnet152"],
     "inception_v3": ["inception_v3"],
-    "clip": ["ViT-B/32", "ViT-B/16", "RN50", "RN101", "RN50x4", "RN50x16"],
+    "clip": ["RN50", "RN101", "RN50x4", "RN50x16", "RN50x64", "ViT-B/32", "ViT-B/16", "ViT-L/14", "ViT-L/14@336px"],
 }
 # chain _MODEL values
 available_models = list(chain(*_MODELS.values()))
+# fmt: on
 
 _INPUT_OUTPUT_DIM = {
     "resnet18": {"input": 224, "output": 512},
@@ -51,8 +53,11 @@ _INPUT_OUTPUT_DIM = {
     "RN101": {"input": 224, "output": 512},
     "RN50x4": {"input": 288, "output": 640},
     "RN50x16": {"input": 384, "output": 768},
+    "RN50x64": {"input": 448, "output": 1024},
     "ViT-B/32": {"input": 224, "output": 512},
     "ViT-B/16": {"input": 224, "output": 512},
+    "ViT-L/14": {"input": 224, "output": 768},
+    "ViT-L/14@336px": {"input": 336, "output": 768},
 }
 
 
@@ -153,24 +158,25 @@ class CLIPEncoder(nn.Module):
         pretrained: bool = True,
         promise_input_dim: int = 224,
     ):
-        """|          | Input resolution | Embedding dimension |
+        """|                | Input resolution | Embedding dimension |
 
-        |----------|------------------|---------------------|
-        | RN50     |              224 |                1024 |
-        | RN101    |              224 |                 512 |
-        | RN50x4   |              288 |                 640 |
-        | RN50x16  |              384 |                 768 |
-        | ViT-B/32 |              224 |                 512 |
-        | ViT-B/16 |              224 |                 512 |
+        |----------------|------------------|---------------------|
+        | RN50           |              224 |                1024 |
+        | RN101          |              224 |                 512 |
+        | RN50x4         |              288 |                 640 |
+        | RN50x16        |              384 |                 768 |
+        | RN50x64        |              448 |                1024 |
+        | ViT-B/32       |              224 |                 512 |
+        | ViT-B/16       |              224 |                 512 |
+        | ViT-L/14       |              224 |                 768 |
+        | ViT-L/14@336px |              336 |                 768 |
         """
         super().__init__()
 
-        if name in ["RN50", "RN101", "ViT-B/32", "ViT-B/16"]:
-            assert promise_input_dim == 224, f"input dim must be 224 for {name}"
-        elif name == "RN50x4":
-            assert promise_input_dim == 288, f"input dim must be 288 for {name}"
-        elif name == "RN50x16":
-            assert promise_input_dim == 384, f"input dim must be 384 for {name}"
+        assert name in _MODELS["clip"]
+        assert (
+            promise_input_dim == _INPUT_OUTPUT_DIM[name]["input"]
+        ), f"input dim must be {_INPUT_OUTPUT_DIM[name]['input']} for {name}"
 
         model, _ = clip.load(
             name, pretrained=pretrained, convert_fp16=False, device="cpu"
@@ -187,37 +193,54 @@ class ImageEncoder(nn.Module):
         self,
         name: str,
         pretrained: bool = True,
-        promise_input_dim: int = 224,
-        fine_tune: bool = False,
+        promise_input_dim: int = None,
+        finetune: bool = False,
         output_dim: int = 512,
+        batch_norm: bool = True,
     ):
         super().__init__()
 
         self.name = name
+        self.pretrained = pretrained
+        self.promise_input_dim = (
+            promise_input_dim
+            if promise_input_dim is not None
+            else _INPUT_OUTPUT_DIM[name]["input"]
+        )
         if name not in available_models:
             raise ValueError(f"{name} is not available")
         elif name in _MODELS["resnet"]:
-            self.encoder = ResNetEncoder(name, pretrained, promise_input_dim)
+            self.encoder = ResNetEncoder(
+                self.name, self.pretrained, self.promise_input_dim
+            )
         elif name in _MODELS["inception_v3"]:
-            self.encoder = InceptionEncoder(name, pretrained, promise_input_dim)
+            self.encoder = InceptionEncoder(
+                self.name, self.pretrained, self.promise_input_dim
+            )
         elif name in _MODELS["clip"]:
-            self.encoder = CLIPEncoder(name, pretrained, promise_input_dim)
+            self.encoder = CLIPEncoder(
+                self.name, self.pretrained, self.promise_input_dim
+            )
 
-        self.fine_tune = fine_tune
-        if not self.fine_tune:
+        self.finetune = finetune
+        if not self.finetune:
             for param in self.encoder.parameters():
                 param.requires_grad = False
 
         self.output_dim = output_dim
         self.linear = nn.Linear(self.encoder.output_dim, output_dim)
-        self.bn = nn.BatchNorm1d(output_dim, momentum=0.01)
+        self.bn = (
+            nn.BatchNorm1d(output_dim, momentum=0.01)
+            if batch_norm
+            else nn.Identity()
+        )
 
         # skip connect if output_dim of encoder and linear are equal
         self.skip_connect = self.encoder.output_dim == output_dim
 
     @dim_agnostic_encode
     def forward(self, images):
-        if self.fine_tune:
+        if not self.finetune:
             self.encoder.eval()
         en_output = self.encoder(images)
 

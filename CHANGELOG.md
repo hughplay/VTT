@@ -13,6 +13,7 @@
     - https://github.com/libffcv/ffcv
     - see this from: https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
 - [ ] optimization for variable length transformations
+- [ ] finetune image encoder with different learning rate
 Discarded:
 - [ ] ~~lmdb, run out of inodes, sad, too much small files~~
     - [ ] writing frames & into lmdb
@@ -25,19 +26,29 @@ Discarded:
     - `images`
     - `features`
     - `context`
-- baseline models
-    - [ ] GLACNet
-    - [ ] CST (Contextualize, Show, and Tell)
-    - [ ] TTNet naive (ours)
 - [ ] decoder inference
     - sampling
         - greedy
         - beam search
             - https://github.com/budzianowski/PyTorch-Beam-Search-Decoding/blob/master/decode_beam.py
         - top_k top_p
-- [ ] dataloader: arguments to decide whether add <start> and <end>
 - [ ] check overall models
     - [ ] check masking
+
+## 2022-08-15 14:26:45
+
+- [x] dataloader: arguments to decide whether add <start> and <end>
+- baseline models
+    - [x] GLACNet
+    - [x] CST (Contextualize, Show, and Tell)
+    - [x] TTNet naive (ours)
+    - visualize models
+      - torchviz: https://github.com/szagoruyko/pytorchviz
+      - hiddenlayer: https://github.com/waleedka/hiddenlayer/blob/master/demos/pytorch_graph.ipynb
+      - [x] torch.onnx.export + netron
+        - scripts/visualize_model.py
+        - https://github.com/lutzroeder/netron
+    - [x] testing
 
 ## 2022-08-13 15:48:01
 

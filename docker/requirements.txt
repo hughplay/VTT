@@ -57,6 +57,7 @@ ipywidgets
 jsonlines       # for reading and writing jsonl files
 ray             # for distributed running of tasks
 # gpustat         # for getting GPU usage
+netron          # visualize PyTorch models
 
 # =============================================
 # Linters

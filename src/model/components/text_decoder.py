@@ -42,7 +42,7 @@ class IndependentLSTMText(nn.Module):
         self,
         state_dim: int = 512,
         feature_dim: int = 512,
-        max_seq_len: int = 5,
+        max_seq_len: int = 12,
         word_emb_dim: int = 512,
         hidden_dim: int = 512,
         num_layers: int = 1,
@@ -190,22 +190,27 @@ class ContextLSTMText(nn.Module):
         assert mask.size() == captions.size()
 
         # prepare inputs
-        inputs = self.embed(captions)
-        inputs = self.dropout_embed(inputs)
+        captions = self.embed(captions)
+        captions = self.dropout_embed(captions)
         context = repeat(
             context, "B N d -> B N L d", B=B, N=N, L=L, d=self.context_dim
         )
-        inputs = torch.cat([inputs, context], dim=-1)
+        captions = torch.cat([context, captions], dim=-1)
 
         # lstm forward pass
-        inputs = rearrange(
-            inputs, "B N L d -> (B N) L d", B=B, N=N, L=L, d=self.lstm_input_dim
+        captions = rearrange(
+            captions,
+            "B N L d -> (B N) L d",
+            B=B,
+            N=N,
+            L=L,
+            d=self.lstm_input_dim,
         )
         lengths = rearrange(mask.sum(dim=-1), "B N -> (B N)", B=B, N=N).cpu()
-        inputs = pack_padded_sequence(
-            inputs, lengths, batch_first=True, enforce_sorted=False
+        captions = pack_padded_sequence(
+            captions, lengths, batch_first=True, enforce_sorted=False
         )
-        output, _ = self.lstm(inputs)
+        output, _ = self.lstm(captions)
         output, _ = pad_packed_sequence(
             output, batch_first=True, total_length=L
         )

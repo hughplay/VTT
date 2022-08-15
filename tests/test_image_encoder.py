@@ -1,19 +1,16 @@
 import pytest
 import torch
 
-from src.model.components.image_encoder import ImageEncoder, available_models
+from src.model.components.image_encoder import (
+    _INPUT_OUTPUT_DIM,
+    ImageEncoder,
+    available_models,
+)
 
 
 @pytest.mark.parametrize("name", available_models)
 def test_image_encoders(name):
-    if name == "RN50x4":
-        promise_input_dim = 288
-    elif name == "RN50x16":
-        promise_input_dim = 384
-    elif name == "inception_v3":
-        promise_input_dim = 299
-    else:
-        promise_input_dim = 224
+    promise_input_dim = _INPUT_OUTPUT_DIM[name]["input"]
 
     output_dim = 512
     encoder = ImageEncoder(

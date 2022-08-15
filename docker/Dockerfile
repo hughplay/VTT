@@ -13,6 +13,7 @@ COPY misc/sources.list.ubuntu20.04 /etc/apt/sources.list
 RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
     ffmpeg \
     openjdk-8-jdk \
+    graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 

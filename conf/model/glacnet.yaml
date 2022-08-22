@@ -1,0 +1,6 @@
+_target_: src.model.glacnet.GLACNet
+dim: 512
+finetune_image_encoder: false
+num_lstm_layers: 2
+embed_dropout: 0.1
+lstm_dropout: 0.5

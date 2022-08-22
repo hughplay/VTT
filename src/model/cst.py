@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 from .components.context_encoder import SimpleLSTMContext
@@ -38,12 +39,22 @@ class CST(nn.Module):
             dropout=lstm_dropout,
         )
 
-    def forward(self, states, states_mask, captions, captions_mask):
+    def forward(
+        self,
+        states: torch.Tensor,
+        states_mask: torch.Tensor,
+        label_ids: torch.Tensor = None,
+        label_mask: torch.Tensor = None,
+    ):
         features = self.image_encoder(states)
         context = self.context_encoder(features, states_mask)
         end_states = features[:, 1:, :]
         logits = self.decoder(
-            context["state"], end_states, captions, captions_mask
+            context["state"],
+            end_states,
+            states_mask[:, 1:],
+            label_ids,
+            label_mask,
         )
         return {
             "features": features,

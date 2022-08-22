@@ -39,6 +39,7 @@ class VTTDataset(Dataset):
         n_segment: int = 3,
         frames_per_segment: int = 1,
         transform_cfg: Dict[str, Any] = {},
+        return_raw_text: bool = False,
     ):
         self.data_root = Path(data_root).expanduser()
         self.data = dtool.JSONLList(
@@ -65,6 +66,7 @@ class VTTDataset(Dataset):
                 list2tensor=True,
                 transform=self.transform,
             )
+        self.return_raw_text = return_raw_text
 
     def __len__(self):
         return len(self.data)
@@ -97,10 +99,9 @@ class VTTDataset(Dataset):
 
     def _read_labels(self, sample):
         """n_trans * n_words"""
-        ids = torch.empty(
+        ids = torch.zeros(
             self.max_transformations, self.max_words, dtype=torch.int64
         )
-        ids.fill_(self.tokenizer.pad_idx)
         mask = torch.zeros(
             self.max_transformations, self.max_words, dtype=torch.bool
         )
@@ -160,6 +161,8 @@ class VTTDataset(Dataset):
             trans, trans_mask = self._read_trans_frames(meta)
             res["trans"] = trans
             res["trans_mask"] = trans_mask
+        if self.return_raw_text:
+            res["text"] = [step["label"] for step in meta["annotation"]]
         return res
 
 

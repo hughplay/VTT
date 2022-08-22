@@ -9,6 +9,7 @@
     - torch-cam: https://github.com/frgfm/torch-cam
     - https://github.com/ml-tooling/best-of-ml-python#model-interpretability
         - https://github.com/slundberg/shap#deep-learning-example-with-gradientexplainer-tensorflowkeraspytorch-models
+    - [x] GradCAM paper reading, 2022-08-19
 - ffcv looks awesome
     - https://github.com/libffcv/ffcv
     - see this from: https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
@@ -22,18 +23,43 @@ Discarded:
 
 ## Currently Working
 
-- [ ] let's unify common used names:
-    - `images`
-    - `features`
-    - `context`
 - [ ] decoder inference
     - sampling
         - greedy
         - beam search
             - https://github.com/budzianowski/PyTorch-Beam-Search-Decoding/blob/master/decode_beam.py
         - top_k top_p
+        - how huggingface's generate works? https://huggingface.co/docs/transformers/v4.21.1/en/main_classes/text_generation#generation
+
+## 2022-08-22 17:46:48
+
+- [x] uniform common used variables:
+    - `states`: original images
+    - `states_mask`: to mark varied number of states, (B, N)
+    - `features`: encoded image features
+    - `context`: contextualized image features
+    - `end_context`: contextualized image features, but ignore the initial state
+    - `trans_mask`: to mark varied number of transformation descriptions, `states_mask[:, 1:]` or `label_mask.sum(-1) > 0`
+    - `label_ids`: captions
+    - `label_mask`: mask for captions
+- [x] loss functions
+- [x] configurations
+- [x] training logic
+- [x] bug: torch metrics act differently when training and pytest
+    - pytest: not sync dist
+    - training: sync dist
+    - fixed by hacking with states
+- [x] make BERTScore not need to connect huggingface.co
+    - `scripts/download_transformers.py`
+    - `test/test_metrics.py`
+    - `conf/criterion/telling_v1.py`
 - [ ] check overall models
-    - [ ] check masking
+    - [x] check masking, by checking dataset
+    - [x] check empty strings
+        - ignore both (preds and target) empty strings in criterion
+        - smart decode, skip start token, stop when end token is hit, return `""` if no end token
+- [x] bug: dataset split not works
+
 
 ## 2022-08-15 14:26:45
 

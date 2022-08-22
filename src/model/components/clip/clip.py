@@ -156,7 +156,7 @@ def load(
         model_path = _download(
             _MODELS[name],
             download_root
-            or os.environ["CLIP_CACHE"]
+            or ("CLIP_CACHE" in os.environ and os.environ["CLIP_CACHE"])
             or os.path.expanduser("~/.cache/clip"),
         )
     elif os.path.isfile(name):

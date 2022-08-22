@@ -1,0 +1,6 @@
+_target_: src.model.cst.CST
+dim: 512
+finetune_image_encoder: false
+max_transformations: ${dataset.dataset_cfg.train.max_transformations}
+num_lstm_layers: 1
+lstm_dropout: 0.3

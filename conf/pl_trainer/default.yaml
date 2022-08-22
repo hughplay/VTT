@@ -3,7 +3,7 @@ accelerator: gpu
 devices: 1
 strategy: ddp
 sync_batchnorm: True
-deterministic: true
+deterministic: false
 
 precision: 32
 accumulate_grad_batches: 1

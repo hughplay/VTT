@@ -32,7 +32,39 @@ logger = logging.getLogger(__name__)
 
 tokenizer = SimpleTokenizer()
 N_WORDS = len(tokenizer)
-PAD_IDX = tokenizer.pad_idx
+
+
+def mask_select(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Select tensor elements where mask is True.
+
+    Args:
+        tensor: tensor of shape (B, ?)
+        mask: tensor of shape (B)
+
+    Returns:
+        tensor of shape (M, ?), where M is the number of True elements in mask
+    """
+    return tensor[mask]
+
+
+def mask_unselect(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Unselect tensor elements where mask is True.
+
+    Args:
+        tensor: tensor of shape (M, ?)
+        mask: tensor of shape (B)
+
+    Returns:
+        tensor of shape (B, ?), where False positions are filled with 0
+    """
+    tensor_size = list(tensor.size())
+    assert tensor_size[0] == mask.sum().item()
+    tensor_size[0] = mask.size(0)
+    full_tensor = torch.zeros(
+        tensor_size, dtype=tensor.dtype, device=tensor.device
+    )
+    full_tensor[mask] = tensor
+    return full_tensor
 
 
 class IndependentLSTMText(nn.Module):
@@ -62,10 +94,7 @@ class IndependentLSTMText(nn.Module):
             else nn.Identity()
         )
         self.embed = nn.ModuleList(
-            [
-                nn.Embedding(N_WORDS, hidden_dim, PAD_IDX)
-                for _ in range(self.max_seq_len)
-            ]
+            [nn.Embedding(N_WORDS, hidden_dim) for _ in range(self.max_seq_len)]
         )
         self.feature_project = (
             nn.Linear(feature_dim, word_emb_dim)
@@ -89,18 +118,19 @@ class IndependentLSTMText(nn.Module):
 
     def forward(
         self,
-        state: Tuple[torch.Tensor, torch.Tensor],
+        lstm_state: Tuple[torch.Tensor, torch.Tensor],
         features: torch.Tensor,
-        captions: torch.Tensor = None,
-        mask: torch.Tensor = None,
+        trans_mask: torch.Tensor,
+        label_ids: torch.Tensor = None,
+        label_mask: torch.Tensor = None,
     ):
-        if captions is None:
-            return self.inference(state, features)
+        if label_ids is None:
+            return self.inference(lstm_state, features, trans_mask)
 
-        h0, c0 = state
+        h0, c0 = lstm_state
 
-        B, N, L = captions.size()
-        assert mask.size() == captions.size()
+        B, N, L = label_ids.size()
+        assert label_mask.size() == label_ids.size()
         assert h0.size() == (self.num_layers, B, self.state_dim)
         assert c0.size() == (self.num_layers, B, self.state_dim)
 
@@ -108,27 +138,36 @@ class IndependentLSTMText(nn.Module):
         h0 = self.state_project(h0)
         c0 = self.state_project(c0)
         features = self.feature_project(features)
-        captions = torch.cat(
-            [self.embed[i](captions[:, i : i + 1, :]) for i in range(N)], dim=1
+        labels = torch.cat(
+            [self.embed[i](label_ids[:, i : i + 1, :]) for i in range(N)], dim=1
         )
-        caption_start = features.unsqueeze(dim=2)
-        captions = torch.cat((caption_start, captions), dim=2)[:, :, :-1, :]
+        start_tok = features.unsqueeze(dim=2)
+        labels = torch.cat((start_tok, labels), dim=2)[:, :, :-1, :]
 
-        # lstm forward pass
-        lengths = mask.sum(dim=-1).cpu()
+        # LSTM forward pass
+        lengths = label_mask.sum(dim=-1)
         outputs = []
-        captions = self.input_dropout(captions)
+        labels = self.input_dropout(labels)
         for i in range(N):
-            input_unit = pack_padded_sequence(
-                captions[:, i, :, :],
-                lengths[:, i],
-                batch_first=True,
-                enforce_sorted=False,
-            )
-            output, _ = self.lstms[i](input_unit, (h0, c0))
-            output, _ = pad_packed_sequence(
-                output, batch_first=True, total_length=L
-            )
+            # *ignore empty captions
+            dense_mask = trans_mask[:, i]
+            dense_labels = mask_select(labels[:, i, :, :], dense_mask)
+            dense_lengths = mask_select(lengths[:, i], dense_mask)
+            if dense_lengths.sum().item() > 0:
+                input_unit = pack_padded_sequence(
+                    dense_labels,
+                    dense_lengths.cpu(),
+                    batch_first=True,
+                    enforce_sorted=False,
+                )
+                output, _ = self.lstms[i](input_unit, (h0, c0))
+                output, _ = pad_packed_sequence(
+                    output, batch_first=True, total_length=L
+                )
+                # *fill back empty lines with 0
+                output = mask_unselect(output, dense_mask)
+            else:
+                output = torch.zeros((B, L, self.hidden_dim)).to(features)
             outputs.append(output)
         outputs = torch.stack(outputs, dim=1)
         outputs = self.output_dropout(outputs)
@@ -138,7 +177,11 @@ class IndependentLSTMText(nn.Module):
 
         return outputs
 
-    def inference(context: torch.Tensor):
+    def inference(
+        lstm_state: torch.Tensor,
+        features: torch.Tensor,
+        trans_mask: torch.Tensor,
+    ):
         pass
 
 
@@ -164,7 +207,7 @@ class ContextLSTMText(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
 
-        self.embed = nn.Embedding(N_WORDS, hidden_dim, PAD_IDX)
+        self.embed = nn.Embedding(N_WORDS, hidden_dim)
         self.dropout_embed = nn.Dropout(p=embed_dropout)
         self.lstm_input_dim = word_emb_dim + context_dim
         self.lstm = nn.LSTM(
@@ -180,37 +223,37 @@ class ContextLSTMText(nn.Module):
     def forward(
         self,
         context: torch.Tensor,
-        captions: torch.Tensor = None,
-        mask: torch.Tensor = None,
+        trans_mask: torch.Tensor,
+        label_ids: torch.Tensor = None,
+        label_mask: torch.Tensor = None,
     ):
-        if captions is None:
-            return self.inference(context)
+        if label_ids is None:
+            return self.inference(context, trans_mask)
 
-        B, N, L = captions.size()
-        assert mask.size() == captions.size()
+        B, N, L = label_ids.size()
+        assert label_mask.size() == label_ids.size()
 
         # prepare inputs
-        captions = self.embed(captions)
-        captions = self.dropout_embed(captions)
+        labels = self.embed(label_ids)
+        labels = self.dropout_embed(labels)
         context = repeat(
             context, "B N d -> B N L d", B=B, N=N, L=L, d=self.context_dim
         )
-        captions = torch.cat([context, captions], dim=-1)
+        labels = torch.cat([context, labels], dim=-1)
 
         # lstm forward pass
-        captions = rearrange(
-            captions,
-            "B N L d -> (B N) L d",
-            B=B,
-            N=N,
-            L=L,
-            d=self.lstm_input_dim,
+        labels = rearrange(
+            labels, "B N L d -> (B N) L d", B=B, N=N, L=L, d=self.lstm_input_dim
         )
-        lengths = rearrange(mask.sum(dim=-1), "B N -> (B N)", B=B, N=N).cpu()
-        captions = pack_padded_sequence(
-            captions, lengths, batch_first=True, enforce_sorted=False
+        lengths = rearrange(label_mask.sum(dim=-1), "B N -> (B N)", B=B, N=N)
+        # *ignore empty lines
+        trans_mask = rearrange(trans_mask, "B N -> (B N)", B=B, N=N)
+        labels = mask_select(labels, trans_mask)
+        lengths = mask_select(lengths, trans_mask)
+        labels = pack_padded_sequence(
+            labels, lengths.cpu(), batch_first=True, enforce_sorted=False
         )
-        output, _ = self.lstm(captions)
+        output, _ = self.lstm(labels)
         output, _ = pad_packed_sequence(
             output, batch_first=True, total_length=L
         )
@@ -218,13 +261,15 @@ class ContextLSTMText(nn.Module):
         # map into words
         output = self.dropout_lstm(output)
         output = self.linear(output)
+        # *fill back empty lines with zeros
+        output = mask_unselect(output, trans_mask)
         output = rearrange(
             output, "(B N) L d -> B N L d", B=B, N=N, L=L, d=N_WORDS
         )
 
         return output
 
-    def inference(context: torch.Tensor):
+    def inference(context: torch.Tensor, trans_mask: torch.Tensor):
         pass
 
 
@@ -257,7 +302,7 @@ class TransformerText(nn.Module):
             else nn.Identity()
         )
 
-        self.embed = nn.Embedding(N_WORDS, hidden_dim, PAD_IDX)
+        self.embed = nn.Embedding(N_WORDS, hidden_dim)
         self.dropout_embed = nn.Dropout(p=dropout)
 
         self.pos_embed = self.setup_position_embedding()
@@ -299,39 +344,46 @@ class TransformerText(nn.Module):
     def forward(
         self,
         context: torch.Tensor,
-        captions: torch.Tensor = None,
-        mask: torch.Tensor = None,
+        trans_mask: torch.Tensor,
+        label_ids: torch.Tensor = None,
+        label_mask: torch.Tensor = None,
     ):
-        if captions is None:
-            return self.inference(context)
+        if label_ids is None:
+            return self.inference(context, trans_mask)
 
-        B, N, L = captions.size()
+        B, N, L = label_ids.size()
 
         # prepare inputs
-        caption_start = self.context_project(context)
-        caption_start = caption_start.unsqueeze(2)
-        captions = self.embed(captions)
-        captions = torch.cat((caption_start, captions), dim=2)[:, :, :-1, :]
-        captions = rearrange(
-            captions, "B N L d -> (B N) L d", B=B, N=N, L=L, d=self.hidden_dim
+        start_tok = self.context_project(context)
+        start_tok = start_tok.unsqueeze(2)
+        labels = self.embed(label_ids)
+        labels = torch.cat((start_tok, labels), dim=2)[:, :, :-1, :]
+        labels = rearrange(
+            labels, "B N L d -> (B N) L d", B=B, N=N, L=L, d=self.hidden_dim
         )
-        mask = rearrange(mask, "B N L -> (B N) L", B=B, N=N, L=L)
+        label_mask = rearrange(label_mask, "B N L -> (B N) L", B=B, N=N, L=L)
+        # *ignore empty lines
+        trans_mask = rearrange(trans_mask, "B N -> (B N)", B=B, N=N)
+        labels = mask_select(labels, trans_mask)
+        label_mask = mask_select(label_mask, trans_mask)
 
         # positional embedding
-        captions = captions + self.pos_embed(captions)
-        captions = self.dropout_embed(captions)
+        labels = labels + self.pos_embed(labels)
+        labels = self.dropout_embed(labels)
 
         # decoder forward pass
-        output = self.decoder(captions, mask=mask)
+        output = self.decoder(labels, mask=label_mask)
         output = self.norm(output)
 
         # map into words
         logits = self.to_logits(output)
+        # *fill back empty lines with zeros
+        logits = mask_unselect(logits, trans_mask)
         logits = rearrange(
             logits, "(B N) L d -> B N L d", B=B, N=N, L=L, d=N_WORDS
         )
 
         return logits
 
-    def inference(self, context: torch.Tensor):
+    def inference(self, context: torch.Tensor, trans_mask: torch.Tensor):
         pass

@@ -1,0 +1,11 @@
+# @package _global_
+name: baseline_cst
+notes: >-
+  Implementation of "Contextualize, Show and Tell: A Neural Visual Storyteller"
+
+defaults:
+  - override /model: cst
+
+pl_trainer:
+  strategy: null
+  sync_batchnorm: False

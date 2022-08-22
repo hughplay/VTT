@@ -25,7 +25,7 @@ def test_independent_lstm(num_layers, state_dim, feature_dim, word_emb_dim):
     cn = torch.randn(num_layers, batch_size, state_dim)
     state = (hn, cn)
     features = torch.randn(batch_size, max_image, feature_dim)
-    captions = torch.randint(0, N_WORDS, (batch_size, max_image, max_words))
+    label_ids = torch.randint(0, N_WORDS, (batch_size, max_image, max_words))
     mask = torch.zeros(batch_size, max_image, max_words).bool()
     rand_len = torch.randint(1, max_words, (batch_size, max_image))
     for i in range(batch_size):
@@ -47,11 +47,11 @@ def test_independent_lstm(num_layers, state_dim, feature_dim, word_emb_dim):
         decoder.cuda()
         state = (hn.cuda(), cn.cuda())
         features = features.cuda()
-        captions = captions.cuda()
+        label_ids = label_ids.cuda()
         mask = mask.cuda()
 
     # get output
-    output = decoder(state, features, captions, mask)
+    output = decoder(state, features, label_ids, mask)
 
     # check output
     assert output.shape == (batch_size, max_image, max_words, N_WORDS)
@@ -68,7 +68,7 @@ def test_context_lstm(num_layers, context_dim, word_emb_dim):
     max_image = 12
     max_words = 24
     context = torch.randn(batch_size, max_image, context_dim)
-    captions = torch.randint(0, N_WORDS, (batch_size, max_image, max_words))
+    label_ids = torch.randint(0, N_WORDS, (batch_size, max_image, max_words))
     mask = torch.zeros(batch_size, max_image, max_words).bool()
     rand_len = torch.randint(1, max_words, (batch_size, max_image))
     for i in range(batch_size):
@@ -87,11 +87,11 @@ def test_context_lstm(num_layers, context_dim, word_emb_dim):
     if torch.cuda.is_available():
         decoder.cuda()
         context = context.cuda()
-        captions = captions.cuda()
+        label_ids = label_ids.cuda()
         mask = mask.cuda()
 
     # get output
-    output = decoder(context, captions, mask)
+    output = decoder(context, label_ids, mask)
 
     # check output
     assert output.shape == (batch_size, max_image, max_words, N_WORDS)
@@ -110,7 +110,7 @@ def test_transformer(context_dim, hidden_dim, position_embedding):
     max_image = 12
     max_words = 24
     context = torch.randn(batch_size, max_image, context_dim)
-    captions = torch.randint(0, N_WORDS, (batch_size, max_image, max_words))
+    label_ids = torch.randint(0, N_WORDS, (batch_size, max_image, max_words))
     mask = torch.zeros(batch_size, max_image, max_words).bool()
     rand_len = torch.randint(1, max_words, (batch_size, max_image))
     for i in range(batch_size):
@@ -128,11 +128,11 @@ def test_transformer(context_dim, hidden_dim, position_embedding):
     if torch.cuda.is_available():
         decoder.cuda()
         context = context.cuda()
-        captions = captions.cuda()
+        label_ids = label_ids.cuda()
         mask = mask.cuda()
 
     # get output
-    output = decoder(context, captions, mask)
+    output = decoder(context, label_ids, mask)
 
     # check output
     assert output.shape == (batch_size, max_image, max_words, N_WORDS)

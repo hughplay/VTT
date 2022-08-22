@@ -1,0 +1,11 @@
+_target_: src.criterion.tell.TTCriterion
+loss:
+  _target_: src.criterion.loss.TellingLossV1
+  context_dim: 512
+  text_model: "ViT-L/14"
+  w_generate: 1.
+  w_classify: 1.
+  w_construct: 1.
+  w_category: 1.
+  w_topic: 1.
+bert_score_model: "/data/pretrain/transformers/roberta-large"

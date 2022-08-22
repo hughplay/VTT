@@ -84,10 +84,8 @@ class JSONLList:
     def __init__(self, jsonl_path, filter_func: Callable = None):
         self.samples = read_jsonlines(jsonl_path)
 
-        if filter is not None:
-            self.samples = [
-                sample for sample in self.samples if filter(filter_func, sample)
-            ]
+        if filter_func is not None:
+            self.samples = list(filter(filter_func, self.samples))
         self.sample_dict = {sample["id"]: sample for sample in self.samples}
 
     def save(self, path, force=False):

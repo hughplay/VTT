@@ -82,26 +82,23 @@ class SimpleTokenizer(object):
         vocab = vocab + [v + "</w>" for v in vocab]
         for merge in merges:
             vocab.append("".join(merge))
-        vocab.extend(["<|startoftext|>", "<|endoftext|>", "<|pad|>"])
+        vocab.extend(["<|startoftext|>", "<|endoftext|>"])
         self.encoder = dict(zip(vocab, range(len(vocab))))
         self.decoder = {v: k for k, v in self.encoder.items()}
         self.bpe_ranks = dict(zip(merges, range(len(merges))))
         self.cache = {
             "<|startoftext|>": "<|startoftext|>",
             "<|endoftext|>": "<|endoftext|>",
-            "<|pad|>": "<|pad|>",
         }
         self.pat = re.compile(
-            r"""<\|startoftext\|>|<\|endoftext\|>|<\|pad\|>|'s|'t|'re|'ve|'m|'ll|'d|[\p{L}]+|[\p{N}]|[^\s\p{L}\p{N}]+""",
+            r"""<\|startoftext\|>|<\|endoftext\|>|'s|'t|'re|'ve|'m|'ll|'d|[\p{L}]+|[\p{N}]|[^\s\p{L}\p{N}]+""",
             re.IGNORECASE,
         )
 
         self.start_tok = "<|startoftext|>"
         self.end_tok = "<|endoftext|>"
-        self.pad_tok = "<|pad|>"
         self.start_idx = self.encoder[self.start_tok]
         self.end_idx = self.encoder[self.end_tok]
-        self.pad_idx = self.encoder[self.pad_tok]
 
     def __len__(self):
         return len(self.encoder)
@@ -172,3 +169,15 @@ class SimpleTokenizer(object):
             .replace("</w>", " ")
         )
         return text
+
+    def smart_decode(self, tokens):
+        """Ignore start and only decode tokens before end token."""
+        if len(tokens) == 0:
+            return ""
+        elif tokens[0] == self.start_idx:
+            tokens = tokens[1:]
+        for i, token in enumerate(tokens):
+            if token == self.end_idx:
+                return self.decode(tokens[:i])
+        else:
+            return ""

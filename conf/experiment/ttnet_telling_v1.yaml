@@ -1,0 +1,12 @@
+# @package _global_
+name: baseline_glacnet
+notes: >
+  Baseline model of "Visual Transformation Telling", using a combination of
+  three loss functions during training:
+    - standard cross-entropy loss for text generation
+    - cross-entropy loss for category and topic classification
+    - mse loss for transformation construction
+
+defaults:
+  - override /model: ttnet
+  - override /criterion: telling_v1

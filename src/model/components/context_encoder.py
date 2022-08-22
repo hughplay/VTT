@@ -67,7 +67,7 @@ class SimpleLSTMContext(nn.Module):
         return self.hidden_dim
 
     def forward(
-        self, x: torch.Tensor, mask: torch.Tensor
+        self, features: torch.Tensor, states_mask: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
         """
         Parameters
@@ -83,15 +83,15 @@ class SimpleLSTMContext(nn.Module):
             context: torch.Tensor of shape (B, N, d)
             state: torch.Tensor of LSTM final state
         """
-        _, N, _ = x.size()
+        _, N, _ = features.size()
 
-        x = self.input_dropout(x)
+        features = self.input_dropout(features)
 
-        x_len = mask.sum(
+        x_len = states_mask.sum(
             dim=1
         ).cpu()  # why .cpu(): https://github.com/pytorch/pytorch/issues/43227
         x_pack = pack_padded_sequence(
-            x, x_len, batch_first=True, enforce_sorted=False
+            features, x_len, batch_first=True, enforce_sorted=False
         )
         output, (h_n, c_n) = self.lstm(x_pack)
         output, _ = pad_packed_sequence(
@@ -149,7 +149,7 @@ class GLocalContext(nn.Module):
         return self.hidden_dim
 
     def forward(
-        self, x: torch.Tensor, mask: torch.Tensor
+        self, features: torch.Tensor, states_mask: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
         """
         Parameters
@@ -165,17 +165,17 @@ class GLocalContext(nn.Module):
             context: torch.Tensor of shape (B, N, d)
             state: torch.Tensor of LSTM final state
         """
-        B, N, _ = x.size()
+        B, N, _ = features.size()
 
-        x_len = mask.sum(dim=1).cpu()
+        x_len = states_mask.sum(dim=1).cpu()
         x_pack = pack_padded_sequence(
-            x, x_len, batch_first=True, enforce_sorted=False
+            features, x_len, batch_first=True, enforce_sorted=False
         )
         global_rnn, (h_n, c_n) = self.lstm(x_pack)
         global_rnn, _ = pad_packed_sequence(
             global_rnn, batch_first=True, total_length=N
         )
-        glocal = torch.cat((x, global_rnn), dim=2).contiguous()
+        glocal = torch.cat((features, global_rnn), dim=2).contiguous()
 
         glocal = rearrange(
             glocal, "B N d -> (B N) d", B=B, N=N, d=self.linear_input_dim
@@ -266,7 +266,7 @@ class TransformerContext(nn.Module):
         return pos_embed
 
     def forward(
-        self, x: torch.Tensor, mask: torch.Tensor
+        self, features: torch.Tensor, states_mask: torch.Tensor
     ) -> Dict[str, torch.Tensor]:
         """
         Parameters
@@ -282,13 +282,15 @@ class TransformerContext(nn.Module):
             context: torch.Tensor of shape (B, N, d)
             state: torch.Tensor of LSTM final state
         """
-        x = x + self.pos_embed(x)
-        x, intermediates = self.encoder(x, mask=mask, return_hiddens=True)
-        x = self.norm(x)
+        features = features + self.pos_embed(features)
+        features, intermediates = self.encoder(
+            features, mask=states_mask, return_hiddens=True
+        )
+        features = self.norm(features)
         attn_maps = list(
             map(
                 lambda t: t.post_softmax_attn,
                 intermediates.attn_intermediates,
             )
         )
-        return {"context": x, "attention": attn_maps}
+        return {"context": features, "attention": attn_maps}

@@ -1,0 +1,7 @@
+# @package _global_
+name: baseline_ttnet
+notes: >-
+  Baseline model of "Visual Transformation Telling"
+
+defaults:
+  - override /model: ttnet

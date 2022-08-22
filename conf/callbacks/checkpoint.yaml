@@ -5,7 +5,7 @@ checkpoint:
   filename: "{epoch:03d}-{step}"
   save_last: true
 
-  monitor: "val/acc"
+  monitor: "val/PPL"
   mode: "max"
   save_top_k: 1
 

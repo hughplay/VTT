@@ -1,0 +1,8 @@
+# @package _global_
+name: baseline_glacnet
+notes: >-
+  Implementation of "GLAC Net: GLocal Attention Cascading Networks for
+  Multi-image Cued Story Generation"
+
+defaults:
+  - override /model: glacnet

@@ -13,4 +13,13 @@ def test_conf():
         cfg = compose(config_name="train")
 
     print_config(cfg)
-    assert cfg.model._target_ == "src.model.lenet.LeNet"
+
+    assert cfg.dataset
+    assert cfg.pipeline
+    assert cfg.model
+    assert cfg.criterion
+    assert cfg.optim
+    assert cfg.scheduler
+    assert cfg.pl_trainer
+    assert cfg.callbacks
+    assert cfg.logging

@@ -1,18 +1,18 @@
 defaults:
   - _self_
   - dataset: vtt
-  - pipeline: classification
-  - model: lenet
-  - criterion: classification
+  - pipeline: telling
+  - model: ttnet
+  - criterion: generation
   - optim: adamw
-  - scheduler: step
+  - scheduler: constant_warmup
   - pl_trainer: default
   - callbacks: [checkpoint, lr_monitor, rich]
   - logging: default
   - logdir: default
 
   # experiment configs allow for version control of specific configurations
-  # e.g. best hyperparameters for each combination of model and datamodule
+  # e.g. best hyper-parameters for each combination of model and datamodule
   - experiment: null
 
   # debugging config (enable through command line, e.g. `python train.py debug=default)
@@ -42,7 +42,7 @@ project: ${oc.env:PROJECT}
 name: default
 
 # expriment id is used to name logdir, sweep subdir, wandb version
-exp_id: ${tail:${dataset._target_}}.${tail:${model._target_}}.${tail:${criterion._target_}}.${now:%Y-%m-%d_%H-%M-%S}
+exp_id: ${tail:${dataset._target_}}.${tail:${model._target_}}.${tail:${criterion.loss._target_}}.${now:%Y-%m-%d_%H-%M-%S}
 
 # notes about the experiment
 notes: ""

@@ -1,0 +1,9 @@
+_target_: src.model.ttnet.TTNet
+dim: 512
+finetune_image_encoder: false
+num_context_layers: 2
+num_decoder_layers: 2
+context_pos_emb: "relative"
+decoder_pos_emb: "relative"
+max_transformations: ${dataset.dataset_cfg.train.max_transformations}
+max_words: ${dataset.dataset_cfg.train.max_words}

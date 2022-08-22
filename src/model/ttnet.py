@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 from .components.context_encoder import TransformerContext
@@ -38,11 +39,19 @@ class TTNet(nn.Module):
             max_words=max_words,
         )
 
-    def forward(self, states, states_mask, captions, captions_mask):
+    def forward(
+        self,
+        states: torch.Tensor,
+        states_mask: torch.Tensor,
+        label_ids: torch.Tensor,
+        label_mask: torch.Tensor,
+    ):
         features = self.image_encoder(states)
         context = self.context_encoder(features, states_mask)
         end_context = context["context"][:, 1:, :]
-        logits = self.decoder(end_context, captions, captions_mask)
+        logits = self.decoder(
+            end_context, states_mask[:, 1:], label_ids, label_mask
+        )
         return {
             "features": features,
             "context": context["context"],

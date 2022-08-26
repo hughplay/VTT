@@ -9,3 +9,8 @@ defaults:
 pl_trainer:
   strategy: null
   sync_batchnorm: False
+
+criterion:
+  loss:
+    logit_shift: -1
+    label_shift: -1

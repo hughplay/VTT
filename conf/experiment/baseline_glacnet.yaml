@@ -6,3 +6,8 @@ notes: >-
 
 defaults:
   - override /model: glacnet
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1

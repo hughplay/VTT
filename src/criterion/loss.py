@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Union
 
 import torch
 from einops import rearrange
@@ -10,10 +10,37 @@ from src.model.components.text_encoder import TextCLIP
 IGNORE_INDEX = -100
 
 
+def shift_tensor(
+    tensor: torch.Tensor,
+    shift: int,
+    dim: int,
+    shift_fill: Union[float, int] = None,
+) -> torch.Tensor:
+    """Shift the tensor by a given amount."""
+    if shift == 0:
+        return tensor
+
+    tensor = torch.roll(tensor, shift, dim)
+    length = tensor.size(dim)
+
+    if shift_fill is not None:
+        if shift < 0:
+            start, end = length + shift, length
+        else:
+            start, end = 0, shift
+        tensor.index_fill_(
+            dim, torch.arange(start, end, device=tensor.device), shift_fill
+        )
+
+    return tensor
+
+
 class GenerationLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, logit_shift: int = 0, label_shift: int = -1):
         super().__init__()
 
+        self.logit_shift = logit_shift
+        self.label_shift = label_shift
         self.loss = nn.CrossEntropyLoss(ignore_index=IGNORE_INDEX)
 
     def forward(
@@ -23,9 +50,14 @@ class GenerationLoss(nn.Module):
     ) -> torch.Tensor:
 
         logits = outputs["logits"]
+        logits = shift_tensor(logits, self.logit_shift, dim=2)
         logits = rearrange(logits, "B N L C -> B C N L")
+
         target = outputs["label_ids"]
+        target = shift_tensor(target, self.label_shift, dim=2)
+
         mask = outputs["label_mask"]
+        mask = shift_tensor(mask, self.label_shift, dim=2, shift_fill=False)
 
         target = target * mask + IGNORE_INDEX * (~mask)
         loss = self.loss(logits, target)
@@ -158,6 +190,8 @@ class TransformationConstructionLoss(nn.Module):
 class TellingLossV1(nn.Module):
     def __init__(
         self,
+        logit_shift: int = 0,
+        label_shift: int = -1,
         context_dim: int = 512,
         text_model: str = "ViT-L/14",
         w_generate: float = 1.0,
@@ -172,7 +206,9 @@ class TellingLossV1(nn.Module):
         self.w_classify = w_classify
         self.w_construct = w_construct
 
-        self.generation_loss = GenerationLoss()
+        self.generation_loss = GenerationLoss(
+            logit_shift=logit_shift, label_shift=label_shift
+        )
         self.classification_loss = ClassificationLoss(
             context_dim=context_dim, w_category=w_category, w_topic=w_topic
         )

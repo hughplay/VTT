@@ -1,3 +1,7 @@
+defaults:
+  - _self_
+  - generate_cfg: top_k_top_p
+
 _target_: src.model.glacnet.GLACNet
 dim: 512
 finetune_image_encoder: false

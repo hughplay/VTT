@@ -9,8 +9,8 @@ from typing import Callable, Iterable, List, Union
 
 import pytorch_lightning as pl
 import wandb
-from hydra import compose, initialize, initialize_config_dir
-from hydra.utils import instantiate, to_absolute_path
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
 from omegaconf import OmegaConf, open_dict
 
 from src.utils.exptool import (
@@ -50,13 +50,28 @@ def test_original(config):
     return config
 
 
-def test_example(config):
+def test_greedy(config):
     config_dir = main_dir / "conf"
     with initialize_config_dir(config_dir=str(config_dir)):
-        cfg = compose(config_name="train", overrides=["experiment=mnist_lenet"])
+        cfg = compose(
+            config_name="train", overrides=["model/generate_cfg=greedy"]
+        )
     # For example, test the model on a different dataset.
     # (Just for example, actually they share the same dataset here.)
-    config.dataset = cfg.dataset
+    config.model.generate_cfg = cfg.model.generate_cfg
+    return config
+
+
+def test_top_k_top_p(config):
+    config_dir = main_dir / "conf"
+    with initialize_config_dir(config_dir=str(config_dir)):
+        cfg = compose(
+            config_name="train", overrides=["model/generate_cfg=top_k_top_p"]
+        )
+    # For example, test the model on a different dataset.
+    # (Just for example, actually they share the same dataset here.)
+    config.model.generate_cfg = cfg.model.generate_cfg
+    config.model.generate_cfg.top_k = 100
     return config
 
 
@@ -117,14 +132,14 @@ def test(
         datamodule = instantiate(config.dataset)
 
         # initialize model
-        model = experiment.get_pipeline_model_loaded("best")
+        pipeline = experiment.get_pipeline_model_loaded("best", config=config)
 
         # initialize trainer
         cfg_trainer = prepare_trainer_config(config, logging=False)
         trainer = pl.Trainer(**cfg_trainer)
 
         # testing
-        results = trainer.test(model, datamodule=datamodule)
+        results = trainer.test(pipeline, datamodule=datamodule)
 
         if trainer.global_rank == 0:
             # log results

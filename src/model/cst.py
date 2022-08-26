@@ -14,6 +14,7 @@ class CST(nn.Module):
         max_transformations=12,
         num_lstm_layers=1,
         lstm_dropout=0.3,
+        generate_cfg={},
     ) -> None:
         super().__init__()
 
@@ -37,6 +38,7 @@ class CST(nn.Module):
             hidden_dim=dim,
             num_layers=num_lstm_layers,
             dropout=lstm_dropout,
+            generate_cfg=generate_cfg,
         )
 
     def forward(
@@ -49,15 +51,12 @@ class CST(nn.Module):
         features = self.image_encoder(states)
         context = self.context_encoder(features, states_mask)
         end_states = features[:, 1:, :]
-        logits = self.decoder(
+        outputs = self.decoder(
             context["state"],
             end_states,
             states_mask[:, 1:],
             label_ids,
             label_mask,
+            return_dict=True,
         )
-        return {
-            "features": features,
-            "context": context["context"],
-            "logits": logits,
-        }
+        return {"features": features, "context": context["context"], **outputs}

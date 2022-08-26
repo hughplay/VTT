@@ -9,6 +9,7 @@ from .components.text_decoder import TransformerText
 class TTNet(nn.Module):
     def __init__(
         self,
+        image_encoder: str = "ViT-B/32",
         dim=512,
         finetune_image_encoder=False,
         num_context_layers=2,
@@ -17,11 +18,12 @@ class TTNet(nn.Module):
         decoder_pos_emb="relative",
         max_transformations=12,
         max_words=24,
+        generate_cfg={},
     ) -> None:
         super().__init__()
 
         self.image_encoder = ImageEncoder(
-            name="ViT-B/32",
+            name=image_encoder,
             finetune=finetune_image_encoder,
             output_dim=dim,
         )
@@ -37,23 +39,24 @@ class TTNet(nn.Module):
             num_layers=num_decoder_layers,
             position_embedding=decoder_pos_emb,
             max_words=max_words,
+            generate_cfg=generate_cfg,
         )
 
     def forward(
         self,
         states: torch.Tensor,
         states_mask: torch.Tensor,
-        label_ids: torch.Tensor,
-        label_mask: torch.Tensor,
+        label_ids: torch.Tensor = None,
+        label_mask: torch.Tensor = None,
     ):
         features = self.image_encoder(states)
         context = self.context_encoder(features, states_mask)
         end_context = context["context"][:, 1:, :]
-        logits = self.decoder(
-            end_context, states_mask[:, 1:], label_ids, label_mask
+        outputs = self.decoder(
+            end_context,
+            states_mask[:, 1:],
+            label_ids,
+            label_mask,
+            return_dict=True,
         )
-        return {
-            "features": features,
-            "context": context["context"],
-            "logits": logits,
-        }
+        return {"features": features, "context": context["context"], **outputs}

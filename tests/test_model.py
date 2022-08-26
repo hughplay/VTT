@@ -36,6 +36,14 @@ def test_model(Model):
         for j in range(max_transformations):
             label_mask[i, j, : rand_len[i, j]] = True
 
+    # test on gpu
+    if torch.cuda.is_available():
+        model.cuda()
+        states = states.cuda()
+        states_mask = states_mask.cuda()
+        label_ids = label_ids.cuda()
+        label_mask = label_mask.cuda()
+
     # check output
     output = model(states, states_mask, label_ids, label_mask)
     assert output["logits"].shape == (

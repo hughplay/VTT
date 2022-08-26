@@ -1,4 +1,6 @@
 _target_: src.criterion.tell.TTCriterion
 loss:
   _target_: src.criterion.loss.GenerationLoss
+  logit_shift: -1
+  label_shift: -1
 bert_score_model: "/data/pretrain/transformers/roberta-large"

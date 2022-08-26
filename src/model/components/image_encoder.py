@@ -96,8 +96,9 @@ class ResNetEncoder(nn.Module):
         pretrained: bool = True,
         promise_input_dim: int = 224,
     ):
-        """|           | Input resolution | Embedding dimension |
+        """ResNet image encoder.
 
+        |           | Input resolution | Embedding dimension |
         |-----------|------------------|---------------------|
         | resnet18  |              224 |                 512 |
         | resnet34  |              224 |                 512 |
@@ -126,8 +127,9 @@ class InceptionEncoder(nn.Module):
         pretrained: bool = True,
         promise_input_dim: int = 299,
     ):
-        """|              | Input resolution | Embedding dimension |
+        """InceptionNet image encoder.
 
+        |              | Input resolution | Embedding dimension |
         |--------------|------------------|---------------------|
         | inception_v3 |              299 |                2048 |
         """
@@ -158,8 +160,9 @@ class CLIPEncoder(nn.Module):
         pretrained: bool = True,
         promise_input_dim: int = 224,
     ):
-        """|                | Input resolution | Embedding dimension |
+        """CLIP image encoder.
 
+        |                | Input resolution | Embedding dimension |
         |----------------|------------------|---------------------|
         | RN50           |              224 |                1024 |
         | RN101          |              224 |                 512 |

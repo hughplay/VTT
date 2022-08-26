@@ -5,3 +5,11 @@ notes: >-
 
 defaults:
   - override /model: ttnet
+
+criterion:
+  loss:
+    logit_shift: -1
+    label_shift: -1
+
+pl_trainer:
+  precision: 16

@@ -14,6 +14,7 @@ class GLACNet(nn.Module):
         num_lstm_layers=2,
         embed_dropout=0.1,
         lstm_dropout=0.5,
+        generate_cfg={},
     ) -> None:
         super().__init__()
 
@@ -37,6 +38,7 @@ class GLACNet(nn.Module):
             num_layers=num_lstm_layers,
             embed_dropout=embed_dropout,
             lstm_dropout=lstm_dropout,
+            generate_cfg=generate_cfg,
         )
 
     def forward(
@@ -49,11 +51,11 @@ class GLACNet(nn.Module):
         features = self.image_encoder(states)
         context = self.context_encoder(features, states_mask)
         end_context = context["context"][:, 1:, :]
-        logits = self.decoder(
-            end_context, states_mask[:, 1:], label_ids, label_mask
+        outputs = self.decoder(
+            end_context,
+            states_mask[:, 1:],
+            label_ids,
+            label_mask,
+            return_dict=True,
         )
-        return {
-            "features": features,
-            "context": context["context"],
-            "logits": logits,
-        }
+        return {"features": features, "context": context["context"], **outputs}

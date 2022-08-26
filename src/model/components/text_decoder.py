@@ -21,6 +21,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from src.dataset.text import SimpleTokenizer
 
+from .generate_utils import SimpleGenerationMixin
 from .x_transformers.x_transformers import (
     AbsolutePositionalEmbedding,
     Decoder,
@@ -67,7 +68,7 @@ def mask_unselect(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     return full_tensor
 
 
-class IndependentLSTMText(nn.Module):
+class IndependentLSTMText(nn.Module, SimpleGenerationMixin):
     """Decode texts with independent LSTMs."""
 
     def __init__(
@@ -79,6 +80,7 @@ class IndependentLSTMText(nn.Module):
         hidden_dim: int = 512,
         num_layers: int = 1,
         dropout=0.3,
+        generate_cfg: Dict[str, Any] = {},
     ):
         super().__init__()
         self.state_dim = state_dim
@@ -87,6 +89,7 @@ class IndependentLSTMText(nn.Module):
         self.word_emb_dim = word_emb_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.generate_cfg = generate_cfg
 
         self.state_project = (
             nn.Linear(state_dim, word_emb_dim)
@@ -123,9 +126,12 @@ class IndependentLSTMText(nn.Module):
         trans_mask: torch.Tensor,
         label_ids: torch.Tensor = None,
         label_mask: torch.Tensor = None,
+        return_dict: bool = False,
     ):
         if label_ids is None:
-            return self.inference(lstm_state, features, trans_mask)
+            return self.generate(
+                lstm_state=lstm_state, features=features, trans_mask=trans_mask
+            )
 
         h0, c0 = lstm_state
 
@@ -173,19 +179,17 @@ class IndependentLSTMText(nn.Module):
         outputs = self.output_dropout(outputs)
 
         # map into words
-        outputs = self.linear(outputs)
+        logits = self.linear(outputs)
 
-        return outputs
+        if return_dict:
+            return {
+                "logits": logits,
+            }
 
-    def inference(
-        lstm_state: torch.Tensor,
-        features: torch.Tensor,
-        trans_mask: torch.Tensor,
-    ):
-        pass
+        return logits
 
 
-class ContextLSTMText(nn.Module):
+class ContextLSTMText(nn.Module, SimpleGenerationMixin):
     """Implementation of the GLocal text decoder.
 
     Note: the inputs of LSTM is a concatenation of the word embedding and the
@@ -200,12 +204,14 @@ class ContextLSTMText(nn.Module):
         num_layers: int = 2,
         embed_dropout=0.1,
         lstm_dropout=0.5,
+        generate_cfg: Dict[str, Any] = {},
     ):
         super().__init__()
         self.context_dim = context_dim
         self.word_emb_dim = word_emb_dim
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.generate_cfg = generate_cfg
 
         self.embed = nn.Embedding(N_WORDS, hidden_dim)
         self.dropout_embed = nn.Dropout(p=embed_dropout)
@@ -226,9 +232,10 @@ class ContextLSTMText(nn.Module):
         trans_mask: torch.Tensor,
         label_ids: torch.Tensor = None,
         label_mask: torch.Tensor = None,
+        return_dict: bool = False,
     ):
         if label_ids is None:
-            return self.inference(context, trans_mask)
+            return self.generate(context=context, trans_mask=trans_mask)
 
         B, N, L = label_ids.size()
         assert label_mask.size() == label_ids.size()
@@ -260,20 +267,20 @@ class ContextLSTMText(nn.Module):
 
         # map into words
         output = self.dropout_lstm(output)
-        output = self.linear(output)
+        logits = self.linear(output)
         # *fill back empty lines with zeros
-        output = mask_unselect(output, trans_mask)
-        output = rearrange(
-            output, "(B N) L d -> B N L d", B=B, N=N, L=L, d=N_WORDS
+        logits = mask_unselect(logits, trans_mask)
+        logits = rearrange(
+            logits, "(B N) L d -> B N L d", B=B, N=N, L=L, d=N_WORDS
         )
 
-        return output
+        if return_dict:
+            return {"logits": logits}
 
-    def inference(context: torch.Tensor, trans_mask: torch.Tensor):
-        pass
+        return logits
 
 
-class TransformerText(nn.Module):
+class TransformerText(nn.Module, SimpleGenerationMixin):
     """Implementation of the Transformer text decoder."""
 
     def __init__(
@@ -284,8 +291,9 @@ class TransformerText(nn.Module):
         num_layers: int = 2,
         dropout=0.1,
         position_embedding: str = "relative",
-        max_words: int = 20,
+        max_words: int = 24,
         decoder_args: Dict[str, Any] = {},
+        generate_cfg: Dict[str, Any] = {},
     ):
         super().__init__()
         self.context_dim = context_dim
@@ -295,6 +303,7 @@ class TransformerText(nn.Module):
         self.dropout = dropout
         self.position_embedding = position_embedding
         self.max_words = max_words
+        self.generate_cfg = generate_cfg
 
         self.context_project = (
             nn.Linear(context_dim, hidden_dim)
@@ -347,11 +356,13 @@ class TransformerText(nn.Module):
         trans_mask: torch.Tensor,
         label_ids: torch.Tensor = None,
         label_mask: torch.Tensor = None,
+        return_dict: bool = False,
     ):
         if label_ids is None:
-            return self.inference(context, trans_mask)
+            return self.generate(context=context, trans_mask=trans_mask)
 
         B, N, L = label_ids.size()
+        assert label_mask.size() == label_ids.size()
 
         # prepare inputs
         start_tok = self.context_project(context)
@@ -383,7 +394,7 @@ class TransformerText(nn.Module):
             logits, "(B N) L d -> B N L d", B=B, N=N, L=L, d=N_WORDS
         )
 
-        return logits
+        if return_dict:
+            return {"logits": logits}
 
-    def inference(self, context: torch.Tensor, trans_mask: torch.Tensor):
-        pass
+        return logits

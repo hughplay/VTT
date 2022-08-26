@@ -11,7 +11,7 @@ accumulate_grad_batches: 1
 profiler: simple
 weights_summary: top
 
-max_epochs: 10
-val_check_interval: 0.5
+max_epochs: 50
+val_check_interval: 1.
 
 default_root_dir: ./

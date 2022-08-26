@@ -156,6 +156,7 @@ class VTTDataset(Dataset):
             "states_mask": states_mask,
             "category": category,
             "topic": topic,
+            "index": index,
         }
         if self.load_frames:
             trans, trans_mask = self._read_trans_frames(meta)

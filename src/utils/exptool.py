@@ -1,4 +1,5 @@
 import logging
+import tempfile
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
@@ -155,7 +156,9 @@ class Experiment:
             )
         return config
 
-    def get_pipeline_model_loaded(self, ckpt="best"):
+    def get_pipeline_model_loaded(self, ckpt="best", config=None):
+        if config is None:
+            config = self.config
         if ckpt == "best":
             ckpt_path = self.best_ckpt_path
         elif ckpt == "last":
@@ -166,13 +169,17 @@ class Experiment:
             raise ValueError(f"ckpt {ckpt} does not exist")
 
         logger.info(f"loading {ckpt_path}")
-        pipeline_cfg = dict(self.config["pipeline"])
+        pipeline_cfg = dict(config["pipeline"])
         pipeline_cfg[
             "_target_"
         ] = f"{pipeline_cfg['_target_']}.load_from_checkpoint"
         pipeline_cfg["checkpoint_path"] = ckpt_path
-        model = instantiate(pipeline_cfg)
-        model.cfg = self.config
+        # set LightningModule.cfg from hparams_file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
+            f.write(OmegaConf.to_yaml(config, resolve=True))
+            f.flush()
+            pipeline_cfg["hparams_file"] = f.name
+            model = instantiate(pipeline_cfg)
         return model
 
 

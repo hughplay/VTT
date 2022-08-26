@@ -13,23 +13,114 @@
 - ffcv looks awesome
     - https://github.com/libffcv/ffcv
     - see this from: https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
-- [ ] optimization for variable length transformations
 - [ ] finetune image encoder with different learning rate
 Discarded:
 - [ ] ~~lmdb, run out of inodes, sad, too much small files~~
     - [ ] writing frames & into lmdb
     - [ ] lmdb dataloader
     - unless we need to use video frames after
+- [ ] add topic category accuracy
+- [ ] inference module, demo
+- [ ] tune hyper parameters
+    - optuna, check pytorch lightning & optuna document
+    - major hyper parameters
+        - learning rate
+        - learning rate scheduler
+        - batch size
+        - dropout
+        - *embedding dimension
 
 ## Currently Working
 
+- [ ] text generation
+    - [ ] beam search
+    - [ ] min length
+    - [ ] repeat word penealty
+- [ ] demo for comparing results
+- experiments:
+    - [ ] difference features
+    - [ ] use the idea of glocal features in ttnet
+    - [ ] add loss functions
+    - [x] compare scheduler
+        - linear warmup v.s. constant warmup
+        - start: 2022-08-27 00:03:06
+
+## 2022-08-26 23:51:37
+
+- [x] test difference image encoders
+    - start: 2022-08-24 16:30:45
+    - estimated end: 2022-08-25 afternoon
+    - ViT-L/14@336px bug: RuntimeError: CUDA error: an illegal memory access was encountered
+    - RN50x64 bug: RuntimeError: cuDNN error: CUDNN_STATUS_NOT_SUPPORTED. This error may appear if you passed in a non-contiguous input
+    - consolusion: seems RN50x4 is the best
 - [ ] decoder inference
     - sampling
-        - greedy
-        - beam search
+        - [x] greedy
+        - [ ] beam search
             - https://github.com/budzianowski/PyTorch-Beam-Search-Decoding/blob/master/decode_beam.py
-        - top_k top_p
+        - [x] top_k top_p
         - how huggingface's generate works? https://huggingface.co/docs/transformers/v4.21.1/en/main_classes/text_generation#generation
+        - https://huggingface.co/blog/how-to-generate
+        - integrate huggingface's generation utils
+    - generate utils
+        - key concepts
+            - LogitProcessor: directly use `transformers.LogitsProcessor`s
+                - purpose:
+            - StoppingCriterion: directly use `transformers.StoppingCriterion`s
+                - purpose:
+        - give up using `transformers`, considering too many scenarios and too many configurations
+        - major stages:
+            1. prepare initial input_ids
+            2. loop until max lengths reached
+                1. prepare model inputs
+                2. get next token logits
+                3. adjust logits
+                4. greedy or sample
+- [x] enable BERTScore only during testing, too slow!
+- [x] check overall models
+    - [x] check label_ids offset
+        - ~~cst, feature as start, exclude `<start-of-text>` in `label_ids`~~
+        - give up deciding whether to prefix `<start-of-text>` or not
+        - the right way is to tell the correct shift to generation loss
+            - label_ids: <start-of-text> text <end-of-text>
+            - label_mask: true ...true... true ...false...
+            - cst
+                - input: <feature> <start-of-text> text
+                - output: <start-of-text> text <end-of-text>
+                - logit_shift: -1
+                    - output: text <end-of-text>
+                - label_shift: -1
+                    - label: text <end-of-text>
+            - glacnet
+                - input: <start_of_text> text
+                - output: text <end-of-text>
+                - logit_shift: 0
+                    - output: text <end-of-text>
+                - label_shift: -1
+                    - label: text <end-of-text>
+            - ttnet
+                - input: <context> <start_of_text> text
+                - ouptut: <start_of_text> text <end-of-text>
+                - logit_shift: -1
+                    - output: text <end-of-text>
+                - label_shift: -1
+                    - label: text <end-of-text>
+- [x] test half-precision
+    - runtime: -1h
+    - performace:
+        - cst: nan
+        - glacnet: little drop
+        - ttnet: almost same, some metrics drop, some metrics improve
+    - conclusion: no half-precision for cst & glacnet, half-precision for ttnet
+- [x] fix bug: max val/PPL -> min val/PPL
+- [x] fix bug: ROUGE, METER computation, wrong average
+= [x] issue: BERTScore is very slow when testing, seems to use CPU only
+    - the default value of `device` is None, which means CPU
+    - now we can also use BERTScore during validation
+- [x] bug: generation config is under model, which is not correctly overriden during testing
+    - pl use `update` to merge parameters into saved `Dictconfig`, which occurs error
+    - use a temp file to save hparams and then load, according to `pl.load_from_checkpoint`
+- [x] save results to files
 
 ## 2022-08-22 17:46:48
 

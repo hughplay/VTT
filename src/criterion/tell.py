@@ -15,6 +15,7 @@ from torchmetrics.utilities.data import dim_zero_cat
 from transformers import logging as transformers_logging
 
 from src.dataset.text import SimpleTokenizer
+from src.utils.datatool import write_jsonlines
 from src.utils.timetool import with_time
 
 from .components.pycocoevalcap.cider.cider import CiderScorer as coco_cider
@@ -77,35 +78,6 @@ def cat_states(func):
     return wrapper
 
 
-class METEOR(Metric):
-    is_differentiable = False
-    higher_is_better = True
-    full_state_update = False
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.meteor = coco_meteor()
-        self.tokenizer = PTBTokenizer()
-
-        self.add_state("score", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state(
-            "score_count", default=torch.tensor(0), dist_reduce_fx="sum"
-        )
-        self.add_state("scores", default=[], dist_reduce_fx="cat")
-
-    def update(self, preds: Sequence[str], target: Sequence[str]) -> None:
-        preds = self.tokenizer.tokenize(coco_fmt_sequences(preds))
-        target = self.tokenizer.tokenize(coco_fmt_sequences(target))
-        score, scores = self.meteor.compute_score(target, preds)
-        self.score += score
-        self.scores.append(torch.tensor(scores).to(self.score.device))
-        self.score_count += len(scores)
-
-    @cat_states
-    def compute(self):
-        return self.score / self.score_count if self.score_count else None
-
-
 class ROUGE(Metric):
     is_differentiable = False
     higher_is_better = True
@@ -125,8 +97,37 @@ class ROUGE(Metric):
     def update(self, preds: Sequence[str], target: Sequence[str]) -> None:
         preds = self.tokenizer.tokenize(coco_fmt_sequences(preds))
         target = self.tokenizer.tokenize(coco_fmt_sequences(target))
-        score, scores = self.rouge.compute_score(target, preds)
-        self.score += score
+        _, scores = self.rouge.compute_score(target, preds)
+        self.score += sum(scores)
+        self.scores.append(torch.tensor(scores).to(self.score.device))
+        self.score_count += len(scores)
+
+    @cat_states
+    def compute(self):
+        return self.score / self.score_count if self.score_count else None
+
+
+class METEOR(Metric):
+    is_differentiable = False
+    higher_is_better = True
+    full_state_update = False
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.meteor = coco_meteor()
+        self.tokenizer = PTBTokenizer()
+
+        self.add_state("score", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state(
+            "score_count", default=torch.tensor(0), dist_reduce_fx="sum"
+        )
+        self.add_state("scores", default=[], dist_reduce_fx="cat")
+
+    def update(self, preds: Sequence[str], target: Sequence[str]) -> None:
+        preds = self.tokenizer.tokenize(coco_fmt_sequences(preds))
+        target = self.tokenizer.tokenize(coco_fmt_sequences(target))
+        _, scores = self.meteor.compute_score(target, preds)
+        self.score += sum(scores)
         self.scores.append(torch.tensor(scores).to(self.score.device))
         self.score_count += len(scores)
 
@@ -252,7 +253,7 @@ class BERTScore(TorchBERTScore):
             user_forward_fn=self.user_forward_fn,
             verbose=self.verbose,
             idf=self.idf,
-            device=self.embedding_device,
+            device=self.device,
             max_length=self.max_length,
             batch_size=self.batch_size,
             num_threads=self.num_threads,
@@ -326,32 +327,86 @@ class TTCriterion(nn.Module):
             ("BERTScore", self.bert_score),
         ]
 
-    def forward(self, outputs, eval=False):
-        result = self.loss(outputs, return_dict=True)
-        self.perplexity.update(result["loss"])
-        if eval:
-            preds = rearrange(
-                outputs["logits"].argmax(dim=-1), "B N L -> (B N) L"
-            )
+        self.samples = []
+
+    def forward(
+        self,
+        outputs: Dict[str, torch.Tensor],
+        compute_loss: bool = True,
+        update_eval: bool = True,
+        exclude_eval_metrics: Union[str, Sequence[str]] = None,
+    ):
+        if compute_loss:
+            result = self.loss(outputs, return_dict=True)
+            self.perplexity.update(result["loss"])
+            outputs.update(result)
+
+        if update_eval:
+            if "sequence" not in outputs:
+                outputs["sequence"] = outputs["logits"].argmax(dim=-1)
+            preds = rearrange(outputs["sequence"], "B N L -> (B N) L")
             target = rearrange(outputs["label_ids"], "B N L -> (B N) L")
             mask = rearrange(outputs["label_mask"].sum(-1) > 0, "B N -> (B N)")
+
             preds = [
                 self.tokenizer.smart_decode(tolist(x)) for x in preds[mask]
             ]
             target = [
                 self.tokenizer.smart_decode(tolist(x)) for x in target[mask]
             ]
-            self.update(preds, target)
-        outputs.update(result)
+
+            self.update(
+                preds, target, exclude_eval_metrics=exclude_eval_metrics
+            )
+            self.record_samples(
+                index=outputs["index"],
+                trans_length=(outputs["label_mask"].sum(-1) > 0).sum(-1),
+                preds=preds,
+                target=target,
+            )
+
         return outputs
 
-    def update(self, preds, target):
+    def record_samples(
+        self,
+        index: torch.Tensor,
+        trans_length: torch.Tensor,
+        preds: List[str],
+        target: List[str],
+    ) -> None:
+        assert len(index) == len(trans_length)
+        assert len(preds) == len(target) == trans_length.sum()
+
+        curr_idx = 0
+        for idx, length in zip(index, trans_length):
+            self.samples.append(
+                {
+                    "index": idx.item(),
+                    "preds": preds[curr_idx : curr_idx + length],
+                    "label": target[curr_idx : curr_idx + length],
+                }
+            )
+            curr_idx += length
+
+    def update(
+        self,
+        preds: Sequence[str],
+        target: Sequence[str],
+        exclude_eval_metrics: Union[str, Sequence[str]] = None,
+    ):
+        if exclude_eval_metrics is None:
+            exclude_eval_metrics = []
+        elif isinstance(exclude_eval_metrics, str):
+            exclude_eval_metrics = [exclude_eval_metrics]
+
         eval_targets = [
             (p, f) for p, f in zip(preds, target) if len(p) > 0 or len(f) > 0
         ]
         preds, target = list(zip(*eval_targets))
         preds, target = list(preds), list(target)
         for metric_name, metric in self.eval_metrics:
+            if metric_name in exclude_eval_metrics:
+                continue
             if metric_name in ["BLEU_4"]:
                 metric.update(preds, [target])
             else:
@@ -360,15 +415,41 @@ class TTCriterion(nn.Module):
     def compute(self, verbose=False):
         metrics = {}
         for metric_name, metric in self.train_metrics + self.eval_metrics:
-            if verbose:
-                value, time_cost = with_time(metric.compute, pretty_time=True)()
-                logger.info(f"- {metric_name}: {value} ({time_cost})")
-            else:
-                value = metric.compute()
-            if value is not None:
-                metrics[metric_name] = value
+            if metric._update_called:
+                if verbose:
+                    value, time_cost = with_time(
+                        metric.compute, pretty_time=True
+                    )()
+                    logger.info(f"- {metric_name}: {value} ({time_cost})")
+                else:
+                    value = metric.compute()
+                if value is not None:
+                    metrics[metric_name] = value
         return metrics
 
     def reset(self):
-        for _, metric in self.eval_metrics:
+        for _, metric in self.train_metrics + self.eval_metrics:
             metric.reset()
+        self.samples = []
+
+    def save(self, path: str = None):
+        if path is None:
+            path = "detail.jsonl"
+        # tested only with one GPU
+        total_sequence = sum(len(s["label"]) for s in self.samples)
+        for metric_name, metric in self.train_metrics + self.eval_metrics:
+            if metric._update_called and hasattr(metric, "scores"):
+                if isinstance(metric.scores, list) and isinstance(
+                    metric.scores[0], torch.Tensor
+                ):
+                    metric.scores = dim_zero_cat(metric.scores)
+                assert len(metric.scores) == total_sequence
+                curr_idx = 0
+                for sample in self.samples:
+                    n_trans = len(sample["label"])
+                    sample[metric_name] = tolist(
+                        metric.scores[curr_idx : curr_idx + n_trans]
+                    )
+                    curr_idx += n_trans
+
+        write_jsonlines(path, self.samples)

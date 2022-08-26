@@ -1,0 +1,5 @@
+do_sample: false
+top_p: 0.
+top_k: 0
+temperature: 1.
+max_words: ${dataset.dataset_cfg.train.max_words}

@@ -5,6 +5,7 @@ notes: >-
 
 defaults:
   - override /model: ttnet
+  - override /model/generate_cfg: top_k_top_p_no_repeat
 
 criterion:
   loss:
@@ -12,4 +13,4 @@ criterion:
     label_shift: -1
 
 pl_trainer:
-  precision: 16
+  precision: 32

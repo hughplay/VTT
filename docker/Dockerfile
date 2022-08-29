@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-
     ffmpeg \
     openjdk-8-jdk \
     graphviz \
+    uvicorn \
     && rm -rf /var/lib/apt/lists/*
 
 
@@ -47,6 +48,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
 
 # COPY .localrc
 COPY misc/.localrc /root
+RUN echo ". ~/.localrc" >> /root/.zshrc
 
 
 # Add a user with the same UID and GID as the host user, to prevent privilege issues.

@@ -22,7 +22,7 @@ class Bleu:
         self._hypo_for_image = {}
         self.ref_for_image = {}
 
-    def compute_score(self, gts, res, score_option="closest", verbose=1):
+    def compute_score(self, gts, res, score_option="closest", verbose=0):
         """
         Inputs:
             gts - ground truths

@@ -1,7 +1,7 @@
-do_sample: false
-top_p: 0.
-top_k: 0
+do_sample: true
+top_p: 0.9
+top_k: 100
 temperature: 1.
 max_words: ${dataset.dataset_cfg.train.max_words}
 min_words: 3 # include start_tok
-repetition_penalty: 1.
+repetition_penalty: 1.2

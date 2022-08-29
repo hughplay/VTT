@@ -1,7 +1,11 @@
+import logging
+
 import pytest
 import torch
 
 from src.criterion.tell import TTCriterion
+
+logger = logging.getLogger(__name__)
 
 
 def test_metrics():
@@ -16,8 +20,15 @@ def test_metrics():
         ["the dog is on the mat", ""],
         ["the dog is not on the mat", ""],
     )
+    ttc.update(
+        ["hello world"],
+        ["what a sunny day"],
+    )
 
     result = ttc.compute(verbose=True)
+
+    for key, val in ttc.scores.items():
+        logger.info(f"{key}: {val}")
 
     assert "BLEU_4" in result
     assert "ROUGE" in result
@@ -26,7 +37,7 @@ def test_metrics():
     assert "BERTScore" in result
 
     # the empty string should be ignored
-    assert ttc.rouge.score_count.item() == 3
+    assert ttc.rouge.score_count.item() == 4
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="no cuda")
@@ -42,8 +53,15 @@ def test_metrics_cuda():
         ["the dog is on the mat", ""],
         ["the dog is not on the mat", ""],
     )
+    ttc.update(
+        ["hello world"],
+        ["what a sunny day"],
+    )
 
     result = ttc.compute(verbose=True)
+
+    for key, val in ttc.scores.items():
+        logger.info(f"{key}: {val}")
 
     assert "BLEU_4" in result
     assert "ROUGE" in result
@@ -52,4 +70,4 @@ def test_metrics_cuda():
     assert "BERTScore" in result
 
     # the empty string should be ignored
-    assert ttc.rouge.score_count.item() == 3
+    assert ttc.rouge.score_count.item() == 4

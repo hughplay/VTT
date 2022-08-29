@@ -42,6 +42,7 @@ transformers
 spacy
 nltk
 ftfy
+bert_score==0.3.11
 
 # =============================================
 # Utils
@@ -58,6 +59,8 @@ jsonlines       # for reading and writing jsonl files
 ray             # for distributed running of tasks
 # gpustat         # for getting GPU usage
 netron          # visualize PyTorch models
+gradio          # for demo
+bokeh           # plot figures
 
 # =============================================
 # Linters

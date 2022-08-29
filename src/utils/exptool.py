@@ -138,6 +138,14 @@ class Experiment:
     def last_ckpt_path(self):
         return self.ckpt_dir / "last.ckpt"
 
+    def ckpt_path(self, ckpt_name):
+        if self.ckpt_dir / f"{ckpt_name}.ckpt".exists():
+            return self.ckpt_dir / f"{ckpt_name}.ckpt"
+        elif self.ckpt_dir / f"{ckpt_name}".exists():
+            return self.ckpt_dir / f"{ckpt_name}"
+        else:
+            return None
+
     def _load_config(self):
         config = None
         if self.config_path.exists():
@@ -163,8 +171,8 @@ class Experiment:
             ckpt_path = self.best_ckpt_path
         elif ckpt == "last":
             ckpt_path = self.last_ckpt_path
-        elif Path(ckpt).exists():
-            ckpt_path = Path(ckpt)
+        elif self.ckpt_path(ckpt) is not None:
+            ckpt_path = self.ckpt_path(ckpt)
         else:
             raise ValueError(f"ckpt {ckpt} does not exist")
 

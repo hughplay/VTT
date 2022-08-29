@@ -2,7 +2,6 @@ import pytest
 import torch
 
 from src.model.components.image_encoder import _INPUT_OUTPUT_DIM
-from src.model.components.text_decoder import N_WORDS
 from src.model.cst import CST
 from src.model.glacnet import GLACNet
 from src.model.ttnet import TTNet

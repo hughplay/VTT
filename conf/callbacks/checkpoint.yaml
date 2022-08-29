@@ -5,8 +5,8 @@ checkpoint:
   filename: "{epoch:03d}-{step}"
   save_last: true
 
-  monitor: "val/PPL"
-  mode: "min"
+  monitor: "val/CIDEr"
+  mode: "max"
   save_top_k: 1
 
   verbose: true

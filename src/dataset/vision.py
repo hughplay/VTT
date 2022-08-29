@@ -87,7 +87,12 @@ class ConsistentTransform:
     """
 
     def __init__(
-        self, n_px=224, resize=False, random_crop=False, random_hflip=False
+        self,
+        n_px=224,
+        resize=False,
+        random_crop=False,
+        random_hflip=False,
+        normalize=True,
     ):
 
         self.n_px = n_px
@@ -95,15 +100,24 @@ class ConsistentTransform:
         self.random_crop = random_crop
         self.random_hflip = random_hflip
 
-        self._to_tensor = Compose(
-            [
-                lambda image: image.convert("RGB"),
-                ToTensor(),
-                Normalize(
-                    (0.48145466, 0.4578275, 0.40821073),
-                    (0.26862954, 0.26130258, 0.27577711),
-                ),
-            ]
+        self._to_tensor = (
+            Compose(
+                [
+                    lambda image: image.convert("RGB"),
+                    ToTensor(),
+                    Normalize(
+                        (0.48145466, 0.4578275, 0.40821073),
+                        (0.26862954, 0.26130258, 0.27577711),
+                    ),
+                ]
+            )
+            if normalize
+            else Compose(
+                [
+                    lambda image: image.convert("RGB"),
+                    ToTensor(),
+                ]
+            )
         )
         self._to_pil = Compose(
             [

@@ -20,7 +20,6 @@ Discarded:
     - [ ] lmdb dataloader
     - unless we need to use video frames after
 - [ ] add topic category accuracy
-- [ ] inference module, demo
 - [ ] tune hyper parameters
     - optuna, check pytorch lightning & optuna document
     - major hyper parameters
@@ -29,21 +28,84 @@ Discarded:
         - batch size
         - dropout
         - *embedding dimension
+- [ ] generation demo, features:
+    - select models
+    - select sample
+    - select generation arguments
 
 ## Currently Working
 
 - [ ] text generation
     - [ ] beam search
-    - [ ] min length
-    - [ ] repeat word penealty
-- [ ] demo for comparing results
 - experiments:
     - [ ] difference features
     - [ ] use the idea of glocal features in ttnet
     - [ ] add loss functions
+    - [ ] shared LSTM of cst
+- [ ] text generation
+    - [ ] beam search
+- research
+    - difference features
+        - key words: fine grained image classification, detect small visual changes
+    - text generation
+        - keywords: multimodal text generation, text generation survey, context constrained (conditional) text generation
+        - [ ] text generation based on existing text generation model
+            - VL-ADAPTER: Parameter-Efficient Transfer Learning for Vision-and-Language Tasks
+                - https://arxiv.org/pdf/2112.06825.pdf
+                - https://github.com/ylsung/VL_adapter
+        - longformer
+    - multi-turn dialogue
+        - key words: ReCoSa
+
+## 2022-08-29 17:10:33
+
+- experiments:
     - [x] compare scheduler
         - linear warmup v.s. constant warmup
         - start: 2022-08-27 00:03:06
+        - conclusion: constant warmup is slightly better
+    - [x] rerun experiments
+        - with updated settings:
+            1. best model monitor: val/CIDEr
+            2. generate from scratch during validation
+            3. ttnet precision changed back to 32
+        - start: 2022-08-29 19:29:21
+- [x] text generation
+    - [x] min length
+    - [x] repeatition word penealty
+        - Conditional Transformer Language Model for Controllable Generation
+            - https://arxiv.org/pdf/1909.05858.pdf
+            - https://github.com/salesforce/ctrl/blob/master/generation.py
+        - vocab length: 49408, end_idx: 49097
+        - the order of logit processors is important
+            - top_k top_p should be the last two processors
+        - A Theoretical Analysis of the Repetition Problem in Text Generation, AAAI
+            - high inflow problem
+            - https://arxiv.org/pdf/2012.14660.pdf
+            - https://github.com/fuzihaofzh/repetition-problem-nlg
+        - directly ban last word seems to crash the prediction
+- [x] demo for comparing results
+    - https://nicjac.dev/posts/how-to-build-machine-learning-demo-in-2022/
+    - inference: TorchServe
+    - [x] Gradio
+    - Streamlit
+- [x] bug: BLEU not appears in the results
+    - use pycocoeval BLEU, it returs 4 scores, use the last one which should be BLEU@4
+    - https://leimao.github.io/blog/BLEU-Score/
+    - torchmetrics BLEU will return 0 if n-gram denominator is 0, which is not desired
+    - using smooth strategy: http://acl2014.org/acl2014/W14-33/pdf/W14-3346.pdf
+    - final method: nltk bleu score + smooth.method7
+- [x] bug?: BERTScore is very large even though the results looks bad
+    - the results between our results and `Tiiiger/bert_score` are different
+    - rescale with baseline is needed!
+        - https://github.com/Tiiiger/bert_score/blob/master/journal/rescale_baseline.md#rescaling-bertscore-with-baselines
+- [x] CIDEr bug: use wrong variable to save offsets
+- val PPL is too small to be used to monitor the performance of the checkpoint
+    - [x] change the monitor metric from PPL to CIDEr
+        - it seems all metrics are highly correlated with human judgement
+    - [x] change val to generate from scratch
+- TTNet performs very bad
+    - change back to precision 32
 
 ## 2022-08-26 23:51:37
 

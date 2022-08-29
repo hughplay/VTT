@@ -9,3 +9,4 @@ loss:
   w_category: 1.
   w_topic: 1.
 bert_score_model: "/data/pretrain/transformers/roberta-large"
+max_words: ${dataset.dataset_cfg.train.max_words}

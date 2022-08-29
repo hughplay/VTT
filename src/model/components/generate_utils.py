@@ -31,9 +31,38 @@ def top_k(logits, k=0):
     return logits
 
 
+def min_length(logits, input_ids, min_length=0, end_idx=None):
+    if min_length > 0:
+        curr_len = input_ids.size(-1)
+        if curr_len < min_length:
+            logits = logits.clone().detach()
+            logits[..., end_idx] = float("-inf")
+    return logits
+
+
+def repetition_penalty(logits, input_ids, repetition_penalty=1.0):
+    if repetition_penalty != 1.0:
+        logits = logits.clone().detach()
+        repetition_mask = torch.zeros_like(logits).bool()
+        repetition_mask.scatter_(-1, input_ids, True)
+        logits[repetition_mask] = logits[repetition_mask] / repetition_penalty
+    return logits
+
+
+def no_repeat_last_word(logits, input_ids, no_repeat_last_word=True):
+    if no_repeat_last_word:
+        logits = logits.clone().detach()
+        no_repeat_mask = torch.zeros_like(logits).bool()
+        no_repeat_mask.scatter_(-1, input_ids[..., -1:], True)
+        logits[no_repeat_mask] = float("-inf")
+    return logits
+
+
 class SimpleGenerationMixin:
 
-    start_idx = SimpleTokenizer().start_idx
+    tokenizer = SimpleTokenizer()
+    start_idx = tokenizer.start_idx
+    end_idx = tokenizer.end_idx
     first_hit = True
 
     def prepare_initial_input_ids(self, **model_kwargs):
@@ -55,7 +84,21 @@ class SimpleGenerationMixin:
             **model_kwargs,
         }
 
-    def logits_process(self, logits: torch.Tensor):
+    def logits_process(self, logits: torch.Tensor, input_ids: torch.Tensor):
+        logits = no_repeat_last_word(
+            logits,
+            input_ids,
+            self.generate_cfg.get("no_repeat_last_word", False),
+        )
+        logits = repetition_penalty(
+            logits, input_ids, self.generate_cfg.get("repetition_penalty", 1.0)
+        )
+        logits = min_length(
+            logits,
+            input_ids,
+            self.generate_cfg.get("min_words", 0),
+            self.end_idx,
+        )
         logits = top_k(logits, self.generate_cfg.get("top_k", 0))
         logits = top_p(logits, self.generate_cfg.get("top_p", 0.0))
         return logits
@@ -83,9 +126,11 @@ class SimpleGenerationMixin:
             model_input = self.prepare_model_inputs(input_ids, **model_kwargs)
             outputs = self(**model_input, return_dict=True)
             next_token_logits = outputs["logits"][..., -1, :]
+            next_token_logits = self.logits_process(
+                next_token_logits, input_ids
+            )
 
             if do_sample:
-                next_token_logits = self.logits_process(next_token_logits)
                 probs = F.softmax(next_token_logits / temperature, dim=-1)
                 B, N, W = probs.size()
                 probs = rearrange(probs, "B N W -> (B N) W", B=B, N=N, W=W)

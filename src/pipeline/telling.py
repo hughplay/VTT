@@ -136,17 +136,8 @@ class TellingLitModule(LightningModule):
         self.criterion.reset()
 
     def validation_step(self, batch: Any, batch_idx: int):
-        outputs = self.step(
-            batch, update_eval=True, exclude_eval_metrics="BERTScore"
-        )
-
-        self.log(
-            "val/loss",
-            outputs["loss"],
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-        )
+        outputs = self.step(batch, update_eval=True, generate_from_scratch=True)
+        return outputs
 
     def validation_epoch_end(self, outputs: List[Any]):
         metrics = self.criterion.compute(verbose=True)

@@ -4,13 +4,12 @@ from typing import Any, Dict, List, Sequence, Union
 
 import numpy as np
 import torch
+from bert_score import score as bert_score
 from einops import rearrange
+from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 from torch import nn
 from torchmetrics import Metric
-from torchmetrics.functional.text.bert import bert_score
 from torchmetrics.metric import jit_distributed_available
-from torchmetrics.text.bert import BERTScore as TorchBERTScore
-from torchmetrics.text.bleu import BLEUScore
 from torchmetrics.utilities.data import dim_zero_cat
 from transformers import logging as transformers_logging
 
@@ -76,6 +75,56 @@ def cat_states(func):
         return func(self, *args, **kwargs)
 
     return wrapper
+
+
+def default_roberta_baseline():
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "components",
+        "roberta_large_baseline.tsv",
+    )
+
+
+class BLEU(Metric):
+    is_differentiable = False
+    higher_is_better = True
+    full_state_update = False
+
+    def __init__(self, n_gram=4, smooth=True, **kwargs):
+        super().__init__(**kwargs)
+
+        self.n_gram = n_gram
+        self.smooth = smooth
+        self.tokenizer = PTBTokenizer()
+
+        self.add_state("score", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state(
+            "score_count", default=torch.tensor(0), dist_reduce_fx="sum"
+        )
+        self.add_state("scores", default=[], dist_reduce_fx="cat")
+
+    def update(self, preds: Sequence[str], target: Sequence[str]) -> None:
+        preds = coco_extract_sequences(
+            self.tokenizer.tokenize(coco_fmt_sequences(preds))
+        )
+        target = coco_extract_sequences(
+            self.tokenizer.tokenize(coco_fmt_sequences(target))
+        )
+        for pred, target in zip(preds, target):
+            score = torch.tensor(
+                sentence_bleu(
+                    [target.split()],
+                    pred.split(),
+                    smoothing_function=SmoothingFunction().method7,
+                )
+            ).to(self.score)
+            self.scores.append(score)
+            self.score_count += 1
+            self.score += score
+
+    @cat_states
+    def compute(self):
+        return self.score / self.score_count if self.score_count else None
 
 
 class ROUGE(Metric):
@@ -163,7 +212,7 @@ class CIDEr(Metric):
         for pred in preds:
             pred = self.clip_tokenizer.encode(pred)
             self.preds_offset.append(
-                torch.tensor(len(self.preds)).to(self.score.device)
+                torch.tensor(len(pred)).to(self.score.device)
             )
             self.preds.append(torch.tensor(pred).to(self.score.device))
         target = coco_extract_sequences(
@@ -172,7 +221,7 @@ class CIDEr(Metric):
         for t in target:
             t = self.clip_tokenizer.encode(t)
             self.target_offset.append(
-                torch.tensor(len(self.target)).to(self.score.device)
+                torch.tensor(len(t)).to(self.score.device)
             )
             self.target.append(torch.tensor(t).to(self.score.device))
 
@@ -199,76 +248,85 @@ class CIDEr(Metric):
         return self.score
 
 
-class BERTScore(TorchBERTScore):
-    def __init__(self, **kwargs):
+class BERTScore(Metric):
+
+    is_differentiable = False
+    higher_is_better = True
+    full_state_update = False
+
+    def __init__(
+        self,
+        model_name_or_path: str = None,
+        num_layers=17,
+        rescale_with_baseline=True,
+        baseline_path=default_roberta_baseline(),
+        idf=False,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
 
+        self.model_name_or_path = model_name_or_path
+        self.idf = idf
+        self.rescale_with_baseline = rescale_with_baseline
+        self.baseline_path = baseline_path
+        self.num_layers = num_layers
+
+        self.clip_tokenizer = SimpleTokenizer()
+
+        self.add_state("preds", default=[], dist_reduce_fx="cat")
+        self.add_state("target", default=[], dist_reduce_fx="cat")
+        self.add_state("preds_offset", default=[], dist_reduce_fx="cat")
+        self.add_state("target_offset", default=[], dist_reduce_fx="cat")
         self.add_state("score", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state(
-            "score_count", default=torch.tensor(0), dist_reduce_fx="sum"
-        )
         self.scores = []
 
-    def update(self, preds: List[str], target: List[str]) -> None:
-        super().update(preds, target)
-        self.preds_input_ids[-1] = self.preds_input_ids[-1].to(self.device)
-        self.preds_attention_mask[-1] = self.preds_attention_mask[-1].to(
-            self.device
-        )
-        self.target_input_ids[-1] = self.target_input_ids[-1].to(self.device)
-        self.target_attention_mask[-1] = self.target_attention_mask[-1].to(
-            self.device
-        )
+    def update(self, preds: Sequence[str], target: Sequence[str]) -> None:
 
-    def _get_input_dict(
-        self, input_ids: List[torch.Tensor], attention_mask: List[torch.Tensor]
-    ) -> Dict[str, torch.Tensor]:
-        output_dict = {
-            "input_ids": input_ids.cpu(),
-            "attention_mask": attention_mask.cpu(),
-        }
-        return output_dict
+        for pred in preds:
+            pred = self.clip_tokenizer.encode(pred)
+            self.preds_offset.append(
+                torch.tensor(len(pred)).to(self.score.device)
+            )
+            self.preds.append(torch.tensor(pred).to(self.score.device))
+        for t in target:
+            t = self.clip_tokenizer.encode(t)
+            self.target_offset.append(
+                torch.tensor(len(t)).to(self.score.device)
+            )
+            self.target.append(torch.tensor(t).to(self.score.device))
 
     @cat_states
-    def compute(self) -> Dict[str, Union[List[float], str]]:
-        """Calculate BERT scores.
-
-        Return:
-            Python dictionary containing the keys `precision`, `recall` and `f1` with corresponding values.
-        """
-        if len(self.preds_input_ids) == 0:
+    def compute(self):
+        if len(self.preds) == 0:
             return None
-        result = bert_score(
-            preds=self._get_input_dict(
-                self.preds_input_ids, self.preds_attention_mask
-            ),
-            target=self._get_input_dict(
-                self.target_input_ids, self.target_attention_mask
-            ),
-            model_name_or_path=self.model_name_or_path,
+        start_p = 0
+        start_t = 0
+        preds, target = [], []
+        for offset_p, offset_t in zip(self.preds_offset, self.target_offset):
+            p = self.clip_tokenizer.decode(
+                tolist(self.preds[start_p : start_p + offset_p])
+            )
+            t = self.clip_tokenizer.decode(
+                tolist(self.target[start_t : start_t + offset_t])
+            )
+            preds.append(p)
+            target.append(t)
+            start_p += offset_p
+            start_t += offset_t
+        _, _, f1 = bert_score(
+            preds,
+            target,
+            model_type=self.model_name_or_path,
             num_layers=self.num_layers,
-            all_layers=self.all_layers,
-            model=self.model,
-            user_tokenizer=self.tokenizer if self.user_tokenizer else None,
-            user_forward_fn=self.user_forward_fn,
-            verbose=self.verbose,
-            idf=self.idf,
-            device=self.device,
-            max_length=self.max_length,
-            batch_size=self.batch_size,
-            num_threads=self.num_threads,
-            return_hash=self.return_hash,
-            lang=self.lang,
             rescale_with_baseline=self.rescale_with_baseline,
             baseline_path=self.baseline_path,
-            baseline_url=self.baseline_url,
+            idf=self.idf,
+            lang="en",
+            device=self.device,
         )
-        self.scores = result["f1"]
-        self.score = torch.sum(torch.tensor(result["f1"]).to(self.score.device))
-        self.score_count = torch.tensor(len(result["f1"])).to(
-            self.score_count.device
-        )
-        return self.score / self.score_count
+        self.scores = tolist(f1)
+        self.score = torch.tensor(self.scores).mean().to(self.score)
+        return self.score
 
 
 class Perplexity(Metric):
@@ -309,11 +367,15 @@ class TTCriterion(nn.Module):
 
         self.loss = loss
 
-        self.bleu_4 = BLEUScore(n_gram=4)
+        # self.bleu_4 = BLEU(n=4)
+        self.bleu_4 = BLEU(n_gram=4)
         self.rouge = ROUGE()
         self.meteor = METEOR()
         self.cider = CIDEr()
-        self.bert_score = BERTScore(model_name_or_path=bert_score_model)
+        self.bert_score = BERTScore(
+            model_name_or_path=bert_score_model,
+            rescale_with_baseline=True,
+        )
         self.perplexity = Perplexity()
 
         self.train_metrics = [
@@ -407,10 +469,7 @@ class TTCriterion(nn.Module):
         for metric_name, metric in self.eval_metrics:
             if metric_name in exclude_eval_metrics:
                 continue
-            if metric_name in ["BLEU_4"]:
-                metric.update(preds, [target])
-            else:
-                metric.update(preds, target)
+            metric.update(preds, target)
 
     def compute(self, verbose=False):
         metrics = {}
@@ -426,6 +485,18 @@ class TTCriterion(nn.Module):
                 if value is not None:
                     metrics[metric_name] = value
         return metrics
+
+    @property
+    def scores(self):
+        result = {}
+        for metric_name, metric in self.train_metrics + self.eval_metrics:
+            if metric._update_called and hasattr(metric, "scores"):
+                if isinstance(metric.scores, list) and isinstance(
+                    metric.scores[0], torch.Tensor
+                ):
+                    metric.scores = dim_zero_cat(metric.scores)
+                result[metric_name] = tolist(metric.scores)
+        return result
 
     def reset(self):
         for _, metric in self.train_metrics + self.eval_metrics:

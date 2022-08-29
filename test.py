@@ -56,9 +56,18 @@ def test_greedy(config):
         cfg = compose(
             config_name="train", overrides=["model/generate_cfg=greedy"]
         )
-    # For example, test the model on a different dataset.
-    # (Just for example, actually they share the same dataset here.)
     config.model.generate_cfg = cfg.model.generate_cfg
+    return config
+
+
+def test_greedy_no_repeat(config):
+    config_dir = main_dir / "conf"
+    with initialize_config_dir(config_dir=str(config_dir)):
+        cfg = compose(
+            config_name="train", overrides=["model/generate_cfg=greedy"]
+        )
+    config.model.generate_cfg = cfg.model.generate_cfg
+    config.model.generate_cfg.no_repeat_last_word = True
     return config
 
 
@@ -68,10 +77,28 @@ def test_top_k_top_p(config):
         cfg = compose(
             config_name="train", overrides=["model/generate_cfg=top_k_top_p"]
         )
-    # For example, test the model on a different dataset.
-    # (Just for example, actually they share the same dataset here.)
     config.model.generate_cfg = cfg.model.generate_cfg
-    config.model.generate_cfg.top_k = 100
+    return config
+
+
+def test_top_k_top_p_no_repeat(config):
+    config_dir = main_dir / "conf"
+    with initialize_config_dir(config_dir=str(config_dir)):
+        cfg = compose(
+            config_name="train", overrides=["model/generate_cfg=top_k_top_p"]
+        )
+    config.model.generate_cfg = cfg.model.generate_cfg
+    config.model.generate_cfg.repetition_penalty = 1.2
+    return config
+
+
+def test_ctrl(config):
+    config_dir = main_dir / "conf"
+    with initialize_config_dir(config_dir=str(config_dir)):
+        cfg = compose(
+            config_name="train", overrides=["model/generate_cfg=ctrl"]
+        )
+    config.model.generate_cfg = cfg.model.generate_cfg
     return config
 
 
@@ -86,6 +113,7 @@ def test_top_k_top_p(config):
 
 def test(
     logdir: Union[str, Path],
+    ckpt: Union[str, Path] = "best",
     update_config_func: Union[Callable, List[Callable]] = test_original,
     update_wandb: bool = False,
     wandb_entity: str = None,
@@ -132,7 +160,7 @@ def test(
         datamodule = instantiate(config.dataset)
 
         # initialize model
-        pipeline = experiment.get_pipeline_model_loaded("best", config=config)
+        pipeline = experiment.get_pipeline_model_loaded(ckpt, config=config)
 
         # initialize trainer
         cfg_trainer = prepare_trainer_config(config, logging=False)
@@ -181,6 +209,7 @@ def test(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("logdir")
+    parser.add_argument("--ckpt", default="best")
     parser.add_argument(
         "--update_func",
         nargs="+",
@@ -204,6 +233,7 @@ if __name__ == "__main__":
 
     test(
         args.logdir,
+        ckpt=args.ckpt,
         update_config_func=update_config_func,
         update_wandb=args.update_wandb,
         wandb_entity=args.entity,

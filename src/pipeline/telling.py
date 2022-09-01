@@ -114,7 +114,7 @@ class TellingLitModule(LightningModule):
         return outputs
 
     def training_step(self, batch: Any, batch_idx: int):
-        outputs = self.step(batch, update_eval=False)
+        outputs = self.step(batch, compute_loss=True, update_eval=False)
 
         self.log(
             "train/loss",
@@ -124,11 +124,11 @@ class TellingLitModule(LightningModule):
             prog_bar=True,
         )
         self.log(
-            "train/ppl",
-            self.criterion.perplexity,
+            "train/PPL",
+            self.criterion.perplexity.compute(),
             on_step=True,
             on_epoch=True,
-            prog_bar=False,
+            prog_bar=True,
         )
         return outputs["loss"]
 

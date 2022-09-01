@@ -36,8 +36,12 @@ transform_cfg:
     resize: true
     random_crop: true
     random_hflip: true
+    normalize: true
+    transform_mode: clip
   eval:
     n_px: ${..train.n_px}
     resize: false
     random_crop: false
     random_hflip: false
+    normalize: ${..train.normalize}
+    transform_mode: ${..train.transform_mode}

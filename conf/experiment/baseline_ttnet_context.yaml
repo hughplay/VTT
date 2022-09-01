@@ -1,0 +1,19 @@
+# @package _global_
+name: baseline_ttnet_context
+notes: >-
+  Baseline model of "Visual Transformation Telling", fusion context into label_ids
+
+defaults:
+  - override /model: ttnet_context
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+
+pl_trainer:
+  precision: 32
+
+model:
+  decoder_context_fusion: add

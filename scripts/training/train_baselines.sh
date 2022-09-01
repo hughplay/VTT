@@ -1,8 +1,10 @@
 # Base CST
-python train.py experiment=baseline_cst pl_trainer.devices='[0]'
+python train.py experiment=baseline_cst
 
 # Base GLACNet
-python train.py experiment=baseline_glacnet pl_trainer.devices='[1]'
+python train.py experiment=baseline_glacnet
 
 # Base TTNet
-python train.py experiment=baseline_ttnet pl_trainer.devices='[2]'
+# python train.py experiment=baseline_ttnet
+python train.py experiment=baseline_ttnet_context \
+    model.decoder_context_fusion=add

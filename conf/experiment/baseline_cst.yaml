@@ -14,3 +14,8 @@ criterion:
   loss:
     logit_shift: -1
     label_shift: -1
+
+dataset:
+  transform_cfg:
+    train:
+      transform_mode: clip # clip mode is better than imagenet for inception v3

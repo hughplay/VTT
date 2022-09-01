@@ -332,7 +332,7 @@ class BERTScore(Metric):
 class Perplexity(Metric):
     is_differentiable = False
     higher_is_better = False
-    full_state_update = True
+    full_state_update = False
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)

@@ -1,0 +1,23 @@
+# @package _global_
+name: baseline_cst_shared
+notes: >-
+  Modified version of "Contextualize, Show and Tell: A Neural Visual Storyteller".
+  In this version, the embedding layer and LSTM text decoder are shared between
+  among all the transformations. ()
+
+defaults:
+  - override /model: cst_shared
+
+pl_trainer:
+  strategy: null
+  sync_batchnorm: False
+
+criterion:
+  loss:
+    logit_shift: -1
+    label_shift: -1
+
+dataset:
+  transform_cfg:
+    train:
+      transform_mode: imagenet

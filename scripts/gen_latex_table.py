@@ -36,7 +36,10 @@ def main_table(runs):
     # prepare table content
     results = defaultdict(list)
     for run in runs:
-        if "test/ROUGE" not in run.summary:
+        if (
+            "test/ROUGE" not in run.summary
+            or "model/_target_" not in run.config
+        ):
             continue
         model_name = run.config["model/_target_"].split(".")[-1]
         results["Model"].append(model_name)

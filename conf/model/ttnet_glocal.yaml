@@ -2,14 +2,12 @@ defaults:
   - _self_
   - generate_cfg: top_k_top_p
 
-_target_: src.model.ttnet.TTNet
+_target_: src.model.ttnet.TTNetGLocal
 image_encoder: ViT-B/32
 dim: 512
 finetune_image_encoder: false
-num_context_layers: 2
+num_lstm_layers: 2
+lstm_dropout: 0.5
 num_decoder_layers: 2
-context_pos_emb: "relative"
 decoder_pos_emb: "relative"
-max_transformations: ${dataset.dataset_cfg.train.max_transformations}
 max_words: ${dataset.dataset_cfg.train.max_words}
-tie_embedding: false

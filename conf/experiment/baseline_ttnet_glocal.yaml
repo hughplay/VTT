@@ -1,0 +1,16 @@
+# @package _global_
+name: baseline_ttnet_glocal
+notes: >-
+  Baseline model of "Visual Transformation Telling", using glocal context.
+
+defaults:
+  - override /model: ttnet_glocal
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+
+criterion:
+  loss:
+    logit_shift: -1
+    label_shift: -1
+
+pl_trainer:
+  precision: 32

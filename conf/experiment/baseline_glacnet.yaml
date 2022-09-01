@@ -11,3 +11,8 @@ criterion:
   loss:
     logit_shift: 0
     label_shift: -1
+
+dataset:
+  transform_cfg:
+    train:
+      transform_mode: imagenet

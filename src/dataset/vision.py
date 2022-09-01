@@ -25,8 +25,21 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 
-def clip_transform(n_px=224):
-    """clip image transform
+CLIP_MEAN = (0.48145466, 0.4578275, 0.40821073)
+CLIP_STD = (0.26862954, 0.26130258, 0.27577711)
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
+
+CLIP_INVERSE_MEAN = (-mean / std for mean, std in zip(CLIP_MEAN, CLIP_STD))
+CLIP_INVERSE_STD = (1.0 / std for std in CLIP_STD)
+IMAGENET_INVERSE_MEAN = (
+    -mean / std for mean, std in zip(IMAGENET_MEAN, IMAGENET_STD)
+)
+IMAGENET_INVERSE_STD = (1.0 / std for std in IMAGENET_STD)
+
+
+def forward_transform(n_px=224, mode="clip"):
+    """forward image transform
     Parameters
     ----------
     n_px :
@@ -36,37 +49,42 @@ def clip_transform(n_px=224):
     torchvison.transforms.Compose
         torchvision transform
     """
+
+    if mode == "clip":
+        mean, std = CLIP_MEAN, CLIP_STD
+    elif mode == "imagenet":
+        mean, std = IMAGENET_MEAN, IMAGENET_STD
+    else:
+        raise ValueError(f"mode {mode} is not supported")
+
     return Compose(
         [
             Resize(n_px, interpolation=InterpolationMode.BICUBIC),
             CenterCrop(n_px),
             lambda image: image.convert("RGB"),
             ToTensor(),
-            Normalize(
-                (0.48145466, 0.4578275, 0.40821073),
-                (0.26862954, 0.26130258, 0.27577711),
-            ),
+            Normalize(mean, std),
         ]
     )
 
 
-def inverse_transform():
+def inverse_transform(mode="clip"):
     """inverse of clip image transform
     Returns
     -------
     torchvision.transforms.Compose
         torchvision transform
     """
+    if mode == "clip":
+        mean, std = CLIP_INVERSE_MEAN, CLIP_INVERSE_STD
+    elif mode == "imagenet":
+        mean, std = IMAGENET_INVERSE_MEAN, IMAGENET_INVERSE_STD
+    else:
+        raise ValueError(f"mode {mode} is not supported")
+
     return Compose(
         [
-            Normalize(
-                (
-                    -0.48145466 / 0.26862954,
-                    -0.4578275 / 0.26130258,
-                    -0.40821073 / 0.27577711,
-                ),
-                (1 / 0.26862954, 1 / 0.26130258, 1 / 0.27577711),
-            ),
+            Normalize(mean, std),
             ToPILImage(),
         ]
     )
@@ -93,6 +111,7 @@ class ConsistentTransform:
         random_crop=False,
         random_hflip=False,
         normalize=True,
+        transform_mode="clip",
     ):
 
         self.n_px = n_px
@@ -100,15 +119,24 @@ class ConsistentTransform:
         self.random_crop = random_crop
         self.random_hflip = random_hflip
 
+        if transform_mode == "clip":
+            mean, std = CLIP_MEAN, CLIP_STD
+            inverse_mean, inverse_std = CLIP_INVERSE_MEAN, CLIP_INVERSE_STD
+        elif transform_mode == "imagenet":
+            mean, std = IMAGENET_MEAN, IMAGENET_STD
+            inverse_mean, inverse_std = (
+                IMAGENET_INVERSE_MEAN,
+                IMAGENET_INVERSE_STD,
+            )
+        else:
+            raise ValueError(f"mode {transform_mode} is not supported")
+
         self._to_tensor = (
             Compose(
                 [
                     lambda image: image.convert("RGB"),
                     ToTensor(),
-                    Normalize(
-                        (0.48145466, 0.4578275, 0.40821073),
-                        (0.26862954, 0.26130258, 0.27577711),
-                    ),
+                    Normalize(mean, std),
                 ]
             )
             if normalize
@@ -121,14 +149,7 @@ class ConsistentTransform:
         )
         self._to_pil = Compose(
             [
-                Normalize(
-                    (
-                        -0.48145466 / 0.26862954,
-                        -0.4578275 / 0.26130258,
-                        -0.40821073 / 0.27577711,
-                    ),
-                    (1 / 0.26862954, 1 / 0.26130258, 1 / 0.27577711),
-                ),
+                Normalize(inverse_mean, inverse_std),
                 ToPILImage(),
             ]
         )
@@ -217,7 +238,7 @@ class VideoFrameReader:
         self.list2tensor = list2tensor
 
         if transform is None:
-            self.transform = clip_transform()
+            self.transform = forward_transform()
         else:
             self.transform = transform
 

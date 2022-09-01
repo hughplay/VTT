@@ -3,12 +3,13 @@ export CUDA_VISIBLE_DEVICES=6
 # TTNet with ResNet152
 python train.py experiment=baseline_ttnet \
     model.image_encoder="resnet152" name="baseline_ttnet_resnet152" \
-    pl_trainer.precision=32
+    dataset.transform_cfg.train.transform_mode="imagenet"
 
 # TTNet with InceptionV3
 python train.py experiment=baseline_ttnet \
     model.image_encoder="inception_v3" name="baseline_ttnet_inception_v3" \
-    dataset.transform_cfg.train.n_px=299 pl_trainer.precision=32
+    dataset.transform_cfg.train.n_px=299 \
+    dataset.transform_cfg.train.transform_mode="imagenet"
 
 # TTNet with RN101
 python train.py experiment=baseline_ttnet \

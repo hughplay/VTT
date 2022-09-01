@@ -14,7 +14,7 @@ from torchvision.utils import save_image
 
 sys.path.append(".")
 from src.dataset.vtt import CATEGORIES, TOPICS, VTTDataset  # noqa: E402
-from src.utils.datatool import read_jsonlines  # noqa: E402
+from src.utils.datatool import read_json, read_jsonlines  # noqa: E402
 from src.utils.plottool import matplotlib_header  # noqa: E402
 
 dataset = VTTDataset(
@@ -25,6 +25,7 @@ dataset = VTTDataset(
 LOG_ROOT = "/log/exp/vtt/"
 details_cache = {}
 exp_ids_cache = {}
+results_cache = {}
 
 
 def refresh():
@@ -47,11 +48,22 @@ def get_exp_ids():
                     exp_name in exp_ids_cache
                     and exp_ids_cache[exp_name] != exp_id
                 ):
-                    exp_name = f"{exp_name}_{i}"
+                    exp_name = f"{config.name}_{i}"
                     i += 1
-                break
+                else:
+                    break
             exp_ids_cache[exp_name] = exp_id
             exp_names.append((exp_name, exp_time))
+
+            summary_path = (
+                exp_root
+                / "wandb"
+                / "latest-run"
+                / "files"
+                / "wandb-summary.json"
+            )
+            if summary_path.exists():
+                results_cache[exp_name] = read_json(summary_path)
     exp_names = [
         x[0] for x in sorted(exp_names, key=lambda x: x[1], reverse=True)
     ]
@@ -65,19 +77,24 @@ def index2result(index, exp_names=[]):
     metrics_plot = get_metrics_pyplot(index, exp_names)
     # metrics_plot = get_metrics_bokeh(index, exp_names)
     metrics_table = get_metrics_table(index, exp_names)
+    overall_metrics_plot = get_overall_metrics_pyplot(exp_names)
+    overall_metrics_table = get_overall_metrics_table(exp_names)
     return (
+        index,
         CATEGORIES[data["category"]],
         TOPICS[data["topic"]],
         cache_test_image(data),
         text_table,
         metrics_plot,
         metrics_table,
+        overall_metrics_plot,
+        overall_metrics_table,
     )
 
 
 def random_result(exp_names=[]):
     index = np.random.randint(len(dataset))
-    return [index, *index2result(index, exp_names)]
+    return index2result(index, exp_names)
 
 
 def cache_test_image(data, cache_dir="/data/vtt/cache/"):
@@ -118,12 +135,7 @@ def get_metrics_pyplot(index, exp_names):
     }
     n_metrics = len(metrics)
     n_exp = len(exp_names)
-    width = 0.2
-
-    # x = np.arange(len(exp_names))
-    # for i, (key, val) in enumerate(results.items()):
-    #     plt.bar(x + width * (i - n_metrics // 2), val, label=key, width=width)
-    # plt.xticks(x, exp_names)
+    width = min((1 - 0.1) / n_exp, 0.2)
 
     x = np.arange(n_metrics)
     for i, exp_name in enumerate(exp_names):
@@ -167,7 +179,7 @@ def get_metrics_bokeh(index, exp_names):
     )
 
     n_metrics = len(metrics)
-    width = 0.2
+    width = min((1 - 0.1) / n_metrics, 0.2)
     for i, metric in enumerate(metrics):
         p.vbar(
             x=dodge("exp", (i - (n_metrics / 2)) * width, range=p.x_range),
@@ -202,6 +214,62 @@ def get_metrics_table(index, exp_names):
     return df
 
 
+def get_overall_metrics_table(exp_names):
+    metrics = ["BLEU_4", "METEOR", "ROUGE", "CIDEr", "BERTScore"]
+    results = {
+        "Exp": exp_names,
+    }
+    results.update(
+        {
+            key: [
+                results_cache[exp_name][f"test/{key}"]
+                if exp_name in results_cache
+                and f"test/{key}" in results_cache[exp_name]
+                else 0.0
+                for exp_name in exp_names
+            ]
+            for key in metrics
+        }
+    )
+    df = pd.DataFrame(results)
+    return df
+
+
+def get_overall_metrics_pyplot(exp_names):
+    matplotlib_header(1 / 3)
+    plt.rcParams["legend.fontsize"] = 12
+
+    metrics = ["BLEU_4", "METEOR", "ROUGE", "CIDEr", "BERTScore"]
+    fig = plt.figure()
+    results = {
+        key: [
+            results_cache[exp_name][f"test/{key}"]
+            if exp_name in results_cache
+            and f"test/{key}" in results_cache[exp_name]
+            else 0.0
+            for exp_name in exp_names
+        ]
+        for key in metrics
+    }
+    n_metrics = len(metrics)
+    n_exp = len(exp_names)
+    width = min((1 - 0.1) / n_exp, 0.2)
+
+    x = np.arange(n_metrics)
+    for i, exp_name in enumerate(exp_names):
+        idx_exp = exp_names.index(exp_name)
+        plt.bar(
+            x + width * (i - n_exp / 2 + 0.5),
+            [results[key][idx_exp] for key in metrics],
+            width=width,
+            label=exp_name,
+        )
+    plt.xticks(x, metrics)
+
+    plt.legend()
+    return fig
+
+
 with gr.Blocks(title="VTT") as demo:
     gr.Markdown("# Visual Transformation Telling")
     index_input = gr.Number(label="Image Index")
@@ -218,20 +286,27 @@ with gr.Blocks(title="VTT") as demo:
 
     image_output = gr.Image()
     df_text_output = gr.DataFrame(label="Transformations")
-    df_metrics_plot = gr.Plot(label="Metrics")
-    df_metrics_df = gr.DataFrame(label="Metrics")
+
+    metrics_plot = gr.Plot(label="Metrics")
+    metrics_df = gr.DataFrame(label="Metrics")
+
+    overall_metrics_plot = gr.Plot(label="Overall Metrics")
+    overall_metrics_df = gr.DataFrame(label="Overall Metrics")
 
     refresh_button.click(refresh, inputs=None, outputs=exp_id_input)
     submit_button.click(
         index2result,
         inputs=[index_input, exp_id_input],
         outputs=[
+            index_input,
             category,
             topic,
             image_output,
             df_text_output,
-            df_metrics_plot,
-            df_metrics_df,
+            metrics_plot,
+            metrics_df,
+            overall_metrics_plot,
+            overall_metrics_df,
         ],
     )
     random_button.click(
@@ -243,8 +318,10 @@ with gr.Blocks(title="VTT") as demo:
             topic,
             image_output,
             df_text_output,
-            df_metrics_plot,
-            df_metrics_df,
+            metrics_plot,
+            metrics_df,
+            overall_metrics_plot,
+            overall_metrics_df,
         ],
     )
 

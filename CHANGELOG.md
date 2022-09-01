@@ -10,15 +10,7 @@
     - https://github.com/ml-tooling/best-of-ml-python#model-interpretability
         - https://github.com/slundberg/shap#deep-learning-example-with-gradientexplainer-tensorflowkeraspytorch-models
     - [x] GradCAM paper reading, 2022-08-19
-- ffcv looks awesome
-    - https://github.com/libffcv/ffcv
-    - see this from: https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
 - [ ] finetune image encoder with different learning rate
-Discarded:
-- [ ] ~~lmdb, run out of inodes, sad, too much small files~~
-    - [ ] writing frames & into lmdb
-    - [ ] lmdb dataloader
-    - unless we need to use video frames after
 - [ ] add topic category accuracy
 - [ ] tune hyper parameters
     - optuna, check pytorch lightning & optuna document
@@ -32,30 +24,89 @@ Discarded:
     - select models
     - select sample
     - select generation arguments
+- [ ] text generation
+    - [ ] beam search
 
 ## Currently Working
 
-- [ ] text generation
-    - [ ] beam search
-- experiments:
-    - [ ] difference features
-    - [ ] use the idea of glocal features in ttnet
-    - [ ] add loss functions
-    - [ ] shared LSTM of cst
-- [ ] text generation
-    - [ ] beam search
 - research
     - difference features
         - key words: fine grained image classification, detect small visual changes
+        - [Awesome Fine-Grained Image Analysis – Papers, Codes and Datasets](http://www.weixiushen.com/project/Awesome_FGIA/Awesome_FGIA.html)
+        - MetaFormer : A Unified Meta Framework for Fine-Grained Recognition
     - text generation
         - keywords: multimodal text generation, text generation survey, context constrained (conditional) text generation
         - [ ] text generation based on existing text generation model
             - VL-ADAPTER: Parameter-Efficient Transfer Learning for Vision-and-Language Tasks
                 - https://arxiv.org/pdf/2112.06825.pdf
                 - https://github.com/ylsung/VL_adapter
+        - sampling: [Controllable Neural Text Generation](https://lilianweng.github.io/posts/2021-01-02-controllable-text-generation/)
+        - [Generalized Visual Language Models](https://lilianweng.github.io/posts/2022-06-09-vlm/)
         - longformer
+        - position embedding
     - multi-turn dialogue
         - key words: ReCoSa
+- experiments:
+    - [ ] use pretrained embedding?
+    - [ ] difference features
+    - [ ] add loss functions
+    - [ ] stage position embedding
+    - [x] tie embedding
+        - [Using the Output Embedding to Improve Language Models](https://arxiv.org/pdf/1608.05859v3.pdf)
+        - [Tying Word Vectors and Word Classifiers: A Loss Framework for Language Modeling](https://arxiv.org/pdf/1611.01462v3.pdf)
+        - start: 2022-08-30 23:47:09
+        - val/CIDEr is None and the training stopped
+        - change the implementation from x_transformer's `x@embed.weight.t()` to `linear.weight=embed.weight`
+            - no good luck
+            - [ ] check the implemetation of BART, T5, GPT2
+
+## 2022-09-01 13:35:19
+
+- [x] bug: ppl not updated, directly use `perplexity.compute()`
+- experiments:
+    - [x] rerun experiments with updated settings:
+            1. best model monitor: val/CIDEr
+            2. generate from scratch during validation
+            3. ttnet precision changed back to 32
+        - start: 2022-08-29 19:29:21
+        - conclusion: slightly better than previous experiments, ~+0.01
+    - [ ] why cst not good?
+        - [x] shared LSTM of cst?
+            - start: 2022-08-30 11:09:49
+            - BLEU_4 + 0.01
+            - not because of shared LSTM
+        - different image normalization?
+            - imagenet's mean std is different with
+            - test torchvision models with imagenet normalization
+            - [x] rerun torchvision image encoders
+                - start: 2022-08-30 10:19:34
+                - conclusion: ViT-L/14 > ViT-B/16 > ViT-B/32 > RN101 > RN50x4 > resnet152 > inception_v3
+            - glacnet +0.01, cst CIDEr+0.01 BERTScore +0.04
+            - the effect of normalization is small
+    - [x] why ttnet performs worse than cst?
+        - [x] glocal feautres?
+            - start: 2022-08-30 20:49:39
+            - ~+0.01, not the key problem
+        - [x] lstm decoder?
+            - start: 2022-08-30 21:23:24
+            - **performs better than glacnet!!!**
+        - modify ttnet
+            - [x] concat context with word embedding?
+                - add context to word embedding
+                    - start: 2022-08-31 11:27:57
+                    - **yes! a large imporvement: CIDEr: 0.96 -> 4.25 > 3.50 (glacnet)**
+                    - concat has similar performance
+            - [ ] ~~use the idea of glocal features in ttnet~~
+                - canceled because the glocal is not the key
+
+Discarded:
+- [ ] ~~lmdb, run out of inodes, sad, too much small files~~
+    - [ ] writing frames & into lmdb
+    - [ ] lmdb dataloader
+    - unless we need to use video frames after
+- ffcv looks awesome
+    - https://github.com/libffcv/ffcv
+    - see this from: https://towardsdatascience.com/pytorch-lightning-vs-deepspeed-vs-fsdp-vs-ffcv-vs-e0d6b2a95719
 
 ## 2022-08-29 17:10:33
 
@@ -64,12 +115,6 @@ Discarded:
         - linear warmup v.s. constant warmup
         - start: 2022-08-27 00:03:06
         - conclusion: constant warmup is slightly better
-    - [x] rerun experiments
-        - with updated settings:
-            1. best model monitor: val/CIDEr
-            2. generate from scratch during validation
-            3. ttnet precision changed back to 32
-        - start: 2022-08-29 19:29:21
 - [x] text generation
     - [x] min length
     - [x] repeatition word penealty

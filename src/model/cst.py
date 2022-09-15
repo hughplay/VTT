@@ -9,6 +9,7 @@ from .components.text_decoder import IndependentLSTMText, SharedLSTMText
 class CST(nn.Module):
     def __init__(
         self,
+        image_encoder="incepion_v3",
         dim=512,
         finetune_image_encoder=False,
         max_transformations=12,
@@ -19,7 +20,7 @@ class CST(nn.Module):
         super().__init__()
 
         self.image_encoder = ImageEncoder(
-            name="inception_v3",
+            name=image_encoder,
             finetune=finetune_image_encoder,
             output_dim=dim,
             batch_norm=False,

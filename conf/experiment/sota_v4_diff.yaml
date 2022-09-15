@@ -1,0 +1,36 @@
+# @package _global_
+name: ttnet_sota_v5
+notes: >-
+  TTNet:
+  1. Fusion context into label_ids,
+  2. MTM
+  3. Use difference features
+
+defaults:
+  - override /model: ttnet_diff
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+  - override /criterion: multitask
+  - override /scheduler: linear_warmup
+
+model:
+  diff_mode: early_and_late
+  context_mode: attention
+  topic_head: false
+  category_head: false
+  image_encoder: ViT-L/14
+  mask_ratio: 0.15
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+    w_construct: null
+    w_classify: null
+    w_category: null
+    w_topic: null
+  topic: false
+  category: false
+
+pl_trainer:
+  precision: 32
+  max_epochs: 50

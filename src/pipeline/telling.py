@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Sequence, Union
 import torch
 from hydra.utils import instantiate
 from pytorch_lightning import LightningModule
+from pytorch_lightning.utilities.memory import get_model_size_mb
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,33 @@ class TellingLitModule(LightningModule):
         return scheduler_cfg
 
     def on_train_start(self):
-        self.criterion.reset()
+        self.log(
+            "model_size/total",
+            get_model_size_mb(self.model),
+            rank_zero_only=True,
+            logger=True,
+        )
+        if hasattr(self.model, "image_encoder"):
+            self.log(
+                "model_size/image_encoder",
+                get_model_size_mb(self.model.image_encoder),
+                rank_zero_only=True,
+                logger=True,
+            )
+        if hasattr(self.model, "context_encoder"):
+            self.log(
+                "model_size/context_encoder",
+                get_model_size_mb(self.model.context_encoder),
+                rank_zero_only=True,
+                logger=True,
+            )
+        if hasattr(self.model, "decoder"):
+            self.log(
+                "model_size/decoder",
+                get_model_size_mb(self.model.decoder),
+                rank_zero_only=True,
+                logger=True,
+            )
 
     def step(
         self,
@@ -116,24 +143,26 @@ class TellingLitModule(LightningModule):
     def training_step(self, batch: Any, batch_idx: int):
         outputs = self.step(batch, compute_loss=True, update_eval=False)
 
-        self.log(
-            "train/loss",
-            outputs["loss"],
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-        )
-        self.log(
-            "train/PPL",
-            self.criterion.perplexity.compute(),
-            on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-        )
-        return outputs["loss"]
-
-    def on_validation_start(self) -> None:
+        for key, value in outputs.items():
+            if key.startswith("loss"):
+                self.log(
+                    f"train/{key}",
+                    value,
+                    on_step=True,
+                    on_epoch=False,
+                    prog_bar=True,
+                )
+        metrics = self.criterion.compute()
+        for name, value in metrics.items():
+            self.log(
+                f"train/{name}",
+                value,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=True,
+            )
         self.criterion.reset()
+        return outputs["loss"]
 
     def validation_step(self, batch: Any, batch_idx: int):
         outputs = self.step(batch, update_eval=True, generate_from_scratch=True)
@@ -148,8 +177,6 @@ class TellingLitModule(LightningModule):
                 on_epoch=True,
                 prog_bar=False,
             )
-
-    def on_test_start(self) -> None:
         self.criterion.reset()
 
     def test_step(self, batch: Any, batch_idx: int):
@@ -166,3 +193,4 @@ class TellingLitModule(LightningModule):
                 prog_bar=True,
             )
         self.criterion.save()
+        self.criterion.reset()

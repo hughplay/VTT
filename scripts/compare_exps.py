@@ -77,6 +77,7 @@ def index2result(index, exp_names=[]):
     metrics_plot = get_metrics_pyplot(index, exp_names)
     # metrics_plot = get_metrics_bokeh(index, exp_names)
     metrics_table = get_metrics_table(index, exp_names)
+    pred_classification_table = get_classification_table(index, exp_names)
     overall_metrics_plot = get_overall_metrics_pyplot(exp_names)
     overall_metrics_table = get_overall_metrics_table(exp_names)
     return (
@@ -87,6 +88,7 @@ def index2result(index, exp_names=[]):
         text_table,
         metrics_plot,
         metrics_table,
+        pred_classification_table,
         overall_metrics_plot,
         overall_metrics_table,
     )
@@ -196,6 +198,26 @@ def get_metrics_bokeh(index, exp_names):
     return json_item(p)
 
 
+def get_classification_table(index, exp_names):
+    keys = ["category_pred", "topic_pred"]
+    results = {
+        "Exp": exp_names,
+    }
+    results.update(
+        {
+            key: [
+                details_cache[exp_name][index][key]
+                if key in details_cache[exp_name][index]
+                else " "
+                for exp_name in exp_names
+            ]
+            for key in keys
+        }
+    )
+    df = pd.DataFrame(results)
+    return df
+
+
 def get_metrics_table(index, exp_names):
     metrics = ["BLEU_4", "METEOR", "ROUGE", "CIDEr", "BERTScore"]
     results = {
@@ -272,8 +294,8 @@ def get_overall_metrics_pyplot(exp_names):
 
 with gr.Blocks(title="VTT") as demo:
     gr.Markdown("# Visual Transformation Telling")
-    index_input = gr.Number(label="Image Index")
     exp_id_input = gr.CheckboxGroup(choices=get_exp_ids(), label="Experiments")
+    index_input = gr.Number(label="Image Index")
     with gr.Row():
         refresh_button = gr.Button("Refresh")
         random_button = gr.Button("Random")
@@ -289,6 +311,7 @@ with gr.Blocks(title="VTT") as demo:
 
     metrics_plot = gr.Plot(label="Metrics")
     metrics_df = gr.DataFrame(label="Metrics")
+    classification_df = gr.DataFrame(label="Pred Classification")
 
     overall_metrics_plot = gr.Plot(label="Overall Metrics")
     overall_metrics_df = gr.DataFrame(label="Overall Metrics")
@@ -305,6 +328,7 @@ with gr.Blocks(title="VTT") as demo:
             df_text_output,
             metrics_plot,
             metrics_df,
+            classification_df,
             overall_metrics_plot,
             overall_metrics_df,
         ],
@@ -320,6 +344,7 @@ with gr.Blocks(title="VTT") as demo:
             df_text_output,
             metrics_plot,
             metrics_df,
+            classification_df,
             overall_metrics_plot,
             overall_metrics_df,
         ],

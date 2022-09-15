@@ -1,0 +1,33 @@
+# @package _global_
+name: ttnet_sota_v2
+notes: >-
+  TTNet:
+  1. Fusion context into label_ids,
+  2. Force to predict the topic of the sample.
+  3. MTM
+
+defaults:
+  - override /model: ttnet_mtm
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+  - override /criterion: multitask
+
+model:
+  topic_head: true
+  category_head: false
+  image_encoder: ViT-L/14
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+    w_construct: null
+    w_category: null
+    w_topic: 1.
+  topic: true
+  category: false
+
+pl_trainer:
+  precision: 32
+
+scheduler:
+  num_warmup_steps: 500

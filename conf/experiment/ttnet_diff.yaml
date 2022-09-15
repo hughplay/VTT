@@ -1,0 +1,24 @@
+# @package _global_
+name: ttnet_diff
+notes: >-
+  TTNet:
+  1. Fusion context into label_ids,
+  2. Add difference features
+
+defaults:
+  - override /model: ttnet_diff
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+  - override /criterion: generation
+
+model:
+  diff_mode: early
+  context_mode: fuse
+  diff_first: false
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+
+pl_trainer:
+  precision: 32

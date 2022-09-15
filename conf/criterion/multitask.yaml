@@ -1,12 +1,14 @@
 _target_: src.criterion.tell.TTCriterion
 loss:
   _target_: src.criterion.loss.TellingLossV1
-  context_dim: 512
-  text_model: "ViT-L/14"
+  logit_shift: -1
+  label_shift: -1
+  text_model: "ViT-B/32"
   w_generate: 1.
   w_classify: 1.
   w_construct: 1.
   w_category: 1.
   w_topic: 1.
 bert_score_model: "/data/pretrain/transformers/roberta-large"
-max_words: ${dataset.dataset_cfg.train.max_words}
+category: true
+topic: true

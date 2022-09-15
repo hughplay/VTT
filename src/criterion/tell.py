@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -8,12 +8,14 @@ from bert_score import score as bert_score
 from einops import rearrange
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
 from torch import nn
+from torchmetrics import Accuracy as AccuracyMetric
 from torchmetrics import Metric
 from torchmetrics.metric import jit_distributed_available
 from torchmetrics.utilities.data import dim_zero_cat
 from transformers import logging as transformers_logging
 
 from src.dataset.text import SimpleTokenizer
+from src.dataset.vtt import CATEGORIES, TOPICS
 from src.utils.datatool import write_jsonlines
 from src.utils.timetool import with_time
 
@@ -351,6 +353,49 @@ class Perplexity(Metric):
         )
 
 
+class Accuracy(AccuracyMetric):
+    def __init__(
+        self,
+        threshold: float = 0.5,
+        num_classes: Optional[int] = None,
+        average: Optional[str] = "micro",
+        mdmc_average: Optional[str] = None,
+        ignore_index: Optional[int] = None,
+        top_k: Optional[int] = None,
+        multiclass: Optional[bool] = None,
+        subset_accuracy: bool = False,
+        classes: Sequence[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            threshold,
+            num_classes,
+            average,
+            mdmc_average,
+            ignore_index,
+            top_k,
+            multiclass,
+            subset_accuracy,
+            **kwargs,
+        )
+        self.classes = classes
+        self.add_state("preds", default=[], dist_reduce_fx="cat")
+        self.add_state("target", default=[], dist_reduce_fx="cat")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
+        super().update(preds, target)
+        self.preds.extend(preds)
+        self.target.extend(target)
+
+    @property
+    def str_preds(self) -> List[str]:
+        return [self.classes[x] for x in tolist(self.preds)]
+
+    @property
+    def str_target(self) -> List[str]:
+        return [self.classes[x] for x in tolist(self.target)]
+
+
 class TTCriterion(nn.Module):
     """Transformation Telling Criterion.
 
@@ -360,12 +405,21 @@ class TTCriterion(nn.Module):
     - "context": the context, required by TellingLoss
     """
 
-    def __init__(self, loss=None, bert_score_model="roberta-large") -> None:
+    def __init__(
+        self,
+        loss=None,
+        bert_score_model="roberta-large",
+        category: bool = False,
+        topic: bool = False,
+    ) -> None:
         super().__init__()
 
-        self.tokenizer = SimpleTokenizer()
-
         self.loss = loss
+        self.bert_score_model = bert_score_model
+        self.category = category
+        self.topic = topic
+
+        self.tokenizer = SimpleTokenizer()
 
         # self.bleu_4 = BLEU(n=4)
         self.bleu_4 = BLEU(n_gram=4)
@@ -389,6 +443,18 @@ class TTCriterion(nn.Module):
             ("BERTScore", self.bert_score),
         ]
 
+        self.classify_metrics = []
+        if self.category:
+            self.category_acc = Accuracy(
+                num_classes=len(CATEGORIES), classes=CATEGORIES, multiclass=True
+            )
+            self.classify_metrics.append(("CategoryAcc", self.category_acc))
+        if self.topic:
+            self.topic_acc = Accuracy(
+                num_classes=len(TOPICS), classes=TOPICS, multiclass=True
+            )
+            self.classify_metrics.append(("TopicAcc", self.topic_acc))
+
         self.samples = []
 
     def forward(
@@ -402,6 +468,24 @@ class TTCriterion(nn.Module):
             result = self.loss(outputs, return_dict=True)
             self.perplexity.update(result["loss"])
             outputs.update(result)
+
+        if self.category and "category_logits" in outputs:
+            category_pred = outputs["category_logits"].argmax(dim=-1)
+            category_target = outputs["category"]
+            self.category_acc.update(category_pred, category_target)
+            category_pred = [CATEGORIES[x] for x in tolist(category_pred)]
+            category_target = [CATEGORIES[x] for x in tolist(category_target)]
+        else:
+            category_pred, category_target = None, None
+
+        if self.topic and "topic_logits" in outputs:
+            topic_pred = outputs["topic_logits"].argmax(dim=-1)
+            topic_target = outputs["topic"]
+            self.topic_acc.update(topic_pred, topic_target)
+            topic_pred = [TOPICS[x] for x in tolist(topic_pred)]
+            topic_target = [TOPICS[x] for x in tolist(topic_target)]
+        else:
+            topic_pred, topic_target = None, None
 
         if update_eval:
             if "sequence" not in outputs:
@@ -420,12 +504,19 @@ class TTCriterion(nn.Module):
             self.update(
                 preds, target, exclude_eval_metrics=exclude_eval_metrics
             )
-            self.record_samples(
-                index=outputs["index"],
-                trans_length=(outputs["label_mask"].sum(-1) > 0).sum(-1),
-                preds=preds,
-                target=target,
-            )
+        else:
+            preds, target = None, None
+
+        self.record_samples(
+            index=outputs["index"],
+            trans_length=(outputs["label_mask"].sum(-1) > 0).sum(-1),
+            trans_preds=preds,
+            trans_target=target,
+            category_pred=category_pred,
+            category_target=category_target,
+            topic_pred=topic_pred,
+            topic_target=topic_target,
+        )
 
         return outputs
 
@@ -433,21 +524,37 @@ class TTCriterion(nn.Module):
         self,
         index: torch.Tensor,
         trans_length: torch.Tensor,
-        preds: List[str],
-        target: List[str],
+        trans_preds: List[str] = None,
+        trans_target: List[str] = None,
+        category_pred: List[str] = None,
+        category_target: List[str] = None,
+        topic_pred: List[str] = None,
+        topic_target: List[str] = None,
     ) -> None:
         assert len(index) == len(trans_length)
-        assert len(preds) == len(target) == trans_length.sum()
+        if trans_preds is not None and trans_target is not None:
+            assert len(trans_preds) == len(trans_target) == trans_length.sum()
+        if category_pred is not None and category_target is not None:
+            assert len(category_pred) == len(category_target) == len(index)
+        if topic_pred is not None and topic_target is not None:
+            assert len(topic_pred) == len(topic_target) == len(index)
 
         curr_idx = 0
-        for idx, length in zip(index, trans_length):
-            self.samples.append(
-                {
-                    "index": idx.item(),
-                    "preds": preds[curr_idx : curr_idx + length],
-                    "label": target[curr_idx : curr_idx + length],
-                }
-            )
+        for i, (idx, length) in enumerate(zip(index, trans_length)):
+
+            sample = {"index": idx.item()}
+
+            if trans_preds is not None and trans_target is not None:
+                sample["preds"] = trans_preds[curr_idx : curr_idx + length]
+                sample["label"] = trans_target[curr_idx : curr_idx + length]
+            if category_pred is not None and category_target is not None:
+                sample["category_pred"] = category_pred[i]
+                sample["category_target"] = category_target[i]
+            if topic_pred is not None and topic_target is not None:
+                sample["topic_pred"] = topic_pred[i]
+                sample["topic_target"] = topic_target[i]
+
+            self.samples.append(sample)
             curr_idx += length
 
     def update(
@@ -473,7 +580,9 @@ class TTCriterion(nn.Module):
 
     def compute(self, verbose=False):
         metrics = {}
-        for metric_name, metric in self.train_metrics + self.eval_metrics:
+        for metric_name, metric in (
+            self.train_metrics + self.eval_metrics + self.classify_metrics
+        ):
             if metric._update_called:
                 if verbose:
                     value, time_cost = with_time(
@@ -499,7 +608,9 @@ class TTCriterion(nn.Module):
         return result
 
     def reset(self):
-        for _, metric in self.train_metrics + self.eval_metrics:
+        for _, metric in (
+            self.train_metrics + self.eval_metrics + self.classify_metrics
+        ):
             metric.reset()
         self.samples = []
 
@@ -508,7 +619,7 @@ class TTCriterion(nn.Module):
             path = "detail.jsonl"
         # tested only with one GPU
         total_sequence = sum(len(s["label"]) for s in self.samples)
-        for metric_name, metric in self.train_metrics + self.eval_metrics:
+        for metric_name, metric in self.eval_metrics:
             if metric._update_called and hasattr(metric, "scores"):
                 if isinstance(metric.scores, list) and isinstance(
                     metric.scores[0], torch.Tensor

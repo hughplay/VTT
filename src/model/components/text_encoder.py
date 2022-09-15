@@ -81,7 +81,10 @@ class TextCLIP(nn.Module):
                 (
                     label_ids,
                     torch.zeros(
-                        B, self.context_length - L, dtype=label_ids.dtype
+                        B,
+                        self.context_length - L,
+                        dtype=label_ids.dtype,
+                        device=label_ids.device,
                     ),
                 ),
                 dim=1,

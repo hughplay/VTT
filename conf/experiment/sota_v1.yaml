@@ -1,0 +1,26 @@
+# @package _global_
+name: ttnet_sota_v1
+notes: >-
+  TTNet:
+  1. Fusion context into label_ids,
+  2. Force to predict the category and topic of the sample.
+
+defaults:
+  - override /model: ttnet_multitask
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+  - override /criterion: multitask
+
+model:
+  image_encoder: ViT-L/14
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+    w_construct: null
+
+pl_trainer:
+  precision: 32
+
+scheduler:
+  num_warmup_steps: 500

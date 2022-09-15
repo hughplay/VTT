@@ -20,3 +20,45 @@ python train.py experiment=baseline_ttnet_context \
 # *Fusion context into label ids by concatenation and linear projection
 python train.py experiment=baseline_ttnet_context \
     model.decoder_context_fusion=concat name=baseline_ttnet_context_concat
+
+# *Replace image encoder of CST with resnet152
+python train.py experiment=baseline_cst \
+    model.image_encoder="resnet152" name="baseline_cst_resnet152" \
+    dataset.transform_cfg.train.transform_mode="imagenet"
+
+# BiContext add
+python train.py experiment=ttnet_bicontext \
+    model.decoder_context_fusion=add name=baseline_ttnet_bicontext_add \
+    logging.wandb.tags="[bicontext]"
+
+# BiContext concat
+python train.py experiment=ttnet_bicontext \
+    model.decoder_context_fusion=concat name=baseline_ttnet_bicontext_concat \
+    logging.wandb.tags="[bicontext]"
+
+# Multitask BiContext add
+python train.py experiment=ttnet_multitask \
+    model.decoder_context_fusion=add model.bicontext=true \
+    name=baseline_ttnet_multitask_bi_add \
+    logging.wandb.tags="[bicontext]"
+
+# Multitask BiContext concat
+python train.py experiment=ttnet_multitask \
+    model.decoder_context_fusion=concat model.bicontext=true \
+    name=baseline_ttnet_multitask_bi_concat \
+    logging.wandb.tags="[bicontext]"
+
+# Classify BiContext add
+python train.py experiment=ttnet_multitask_classify \
+    model.decoder_context_fusion=add model.bicontext=true \
+    name=baseline_ttnet_classify_bi_add \
+    logging.wandb.tags="[bicontext]"
+
+# Classify BiContext concat
+python train.py experiment=ttnet_multitask_classify \
+    model.decoder_context_fusion=concat model.bicontext=true \
+    name=baseline_ttnet_classify_bi_concat \
+    logging.wandb.tags="[bicontext]"
+
+# MTM
+python train.py experiment=ttnet_mtm

@@ -1,0 +1,29 @@
+# @package _global_
+name: ttnet_multitask_reconstruct
+notes: >-
+  TTNet:
+  1. Fusion context into label_ids,
+  2. Force to make context embedding similart to CLIP's text embedding
+
+defaults:
+  - override /model: ttnet_multitask
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+  - override /criterion: multitask
+
+model:
+  category_head: false
+  topic_head: false
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+    text_model: "ViT-B/32"
+    w_classify: null
+  category: false
+  topic: false
+
+pl_trainer:
+  precision: 32
+  strategy: null
+  sync_batchnorm: False

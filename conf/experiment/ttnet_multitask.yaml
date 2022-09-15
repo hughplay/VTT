@@ -1,5 +1,5 @@
 # @package _global_
-name: baseline_glacnet
+name: ttnet_multitask
 notes: >
   Baseline model of "Visual Transformation Telling", using a combination of
   three loss functions during training:
@@ -8,5 +8,17 @@ notes: >
     - mse loss for transformation construction
 
 defaults:
-  - override /model: ttnet
-  - override /criterion: telling_v1
+  - override /model: ttnet_multitask
+  - override /model/generate_cfg: top_k_top_p_no_repeat
+  - override /criterion: multitask
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+    text_model: "ViT-B/32"
+
+pl_trainer:
+  precision: 32
+  strategy: null
+  sync_batchnorm: False

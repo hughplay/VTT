@@ -10,6 +10,7 @@
     - https://github.com/ml-tooling/best-of-ml-python#model-interpretability
         - https://github.com/slundberg/shap#deep-learning-example-with-gradientexplainer-tensorflowkeraspytorch-models
     - [x] GradCAM paper reading, 2022-08-19
+    - Transformer visualization: https://openaccess.thecvf.com/content/CVPR2021/papers/Chefer_Transformer_Interpretability_Beyond_Attention_Visualization_CVPR_2021_paper.pdf
 - [ ] finetune image encoder with different learning rate
 - [ ] add topic category accuracy
 - [ ] tune hyper parameters
@@ -29,6 +30,14 @@
 
 ## Currently Working
 
+- experiments:
+    - [ ] overall refinement?
+    - [ ] trade-off between multiple objectives
+        - [Multi-Task Learning as Multi-Objective Optimization](https://proceedings.neurips.cc/paper/2018/file/432aca3a1e345e339f35a30c8f65edce-Paper.pdf)
+- experiment analysis
+
+## 2022-09-15 10:58:01
+
 - research
     - difference features
         - key words: fine grained image classification, detect small visual changes
@@ -46,11 +55,114 @@
         - position embedding
     - multi-turn dialogue
         - key words: ReCoSa
+- [x] move category, topic linear back to model
+- questions:
+    - evaluation metrics: sentence wise or sample wise?
+- cases
+    - difference might works:
+        - 1277
+    - mtm, topic should work
+        - 1140
+        - 42, breathing
+    - repetition
+        - 1142
 - experiments:
-    - [ ] use pretrained embedding?
-    - [ ] difference features
-    - [ ] add loss functions
+    - [ ] overall refinement?
+    - [x] fix: the target of the previous reconstruction is wrong (features), should be end_context
+        - start: 2022-09-13 19:30:35
+        - worse than wrong reconstruction = =
+    - [x] difference features
+        - how to extract:
+            - [x] early difference features
+            - [x] *late difference features
+            - all pairs
+        - how to contextualize:
+            - simple attention
+                - [x] diff first
+                - [x] *diff last
+            - [x] cross attention, diff as query
+            - [x] concat and then linear project
+        - start: 2022-09-13 14:25:43
+        - conclusion:
+            1. difference features imporve the perfomance with a large margin
+            2. simple attention the most effective strategy
+            3. late fusion is better than early fusion
+            4. diff last is better than diff first
+    - [x] what about use both early and late difference features?
+        - start: 2022-09-14
+        - not better than late difference features
+    - [ ] category, topic classification
+        - [Multi-Task Learning as Multi-Objective Optimization](https://proceedings.neurips.cc/paper/2018/file/432aca3a1e345e339f35a30c8f65edce-Paper.pdf)
+    - [ ] decoder use cross attention
+        - ReCoSa: Detecting the Relevant Contexts with Self-Attention for Multi-turn Dialogue Generation
+    - [ ] attend and tell
+        - context features with attention
+    - [ ] transformer text decoder with cross attention
+    - what we are sure:
+        - ViT-L/14 is the best image encoder
+        - on ViT-B/16, predicting topic, category, mtm all have positive effects
+    - [x] sotav2
+        - start: 2022-09-08
+        - when topic classification is enabled, not mtm is better
+        - when mtm is enabled, no classification is better
+        - waiting for no mtm and no classification
+        - large model makes large difference
+    - [x] masked prediction
+        - motivation: force model to generate descriptions based on images from other positions
+        - start: 2022-09-08 10:31:37
+        - ~+0.01
+        - conclusion: masked prediction is helpful
+    - [x] dropout for topic, category classification
+        - motivation: overfitting
+        - start: 2022-09-07 21:50:11
+        - consolusion: negative effect
+    - [x] currently sota ablation: sota_v1
+        - the best
+            - context + word embedding
+            - multitask: category classification + topic classification
+            - warmup: 500
+        - ablation 1: image encoder
+        - ablation 2: classification ablation
+            - w/ topic is better than w/ topic, category
+        - 2022-09-06
+    - [x] add classification loss
+        - start: 2022-09-02
+        - CIDEr:
+        - topic classification is the key
+    - [x] add reconstruction loss
+        - 2022-09-02
+        - CIDEr: 4.259 -> 4.212
+        - reconstruction has negative effect
     - [ ] stage position embedding
+        - In [UNITER](https://github.com/ChenRocks/UNITER/blob/1dbfa62bb8ddb1f2b11d20775ce324c5e45a3ab4/model/model.py#L268), they project position features into a embedding vector with a linear layer.
+    - [x] effect of training epochs
+        - start: 2022-09-01
+        - 100 epochs: 4.259 -> 4.417
+    - [x] effect of warmup steps
+        - start: 2022-09-02 00:30:18
+        - affects little: 500 is the best, 4.259 (2000) -> 4.315 (500)
+    - [x] why cst not good?
+        - change image encoder to resnet152
+            - start: 2022-09-01 19:08:09
+            - CIDEr: 0.05 -> 0.5261
+            - conclusion: something is wrong with inception v3
+    - [x] bicontext
+        - motivation: transformations are not consistent, must enchance the overall context information when decoding descriptions
+        - start: 2022-09-04 20:14:56
+        - little effect, almost no change
+    - [x] bicontext multitask, classify
+        - start: 2022-09-04 20:14:56
+        - negative effect: -0.5 ~ -0.4 on CIDEr
+    - image encoder
+        - timm
+            - https://github.com/rwightman/pytorch-image-models/blob/master/results/results-imagenet.csv
+        - [x] vision transformer
+            - start: 2022-09-05 13:44:29
+        - [x] swin transformer
+            - start: 2022-09-05 13:44:29
+        - [x] beit transformer
+            - start: 2022-09-05 13:44:29
+        - conclusion: CLIP models are better
     - [x] tie embedding
         - [Using the Output Embedding to Improve Language Models](https://arxiv.org/pdf/1608.05859v3.pdf)
         - [Tying Word Vectors and Word Classifiers: A Loss Framework for Language Modeling](https://arxiv.org/pdf/1611.01462v3.pdf)
@@ -80,7 +192,7 @@
             - test torchvision models with imagenet normalization
             - [x] rerun torchvision image encoders
                 - start: 2022-08-30 10:19:34
-                - conclusion: ViT-L/14 > ViT-B/16 > ViT-B/32 > RN101 > RN50x4 > resnet152 > inception_v3
+                - conclusion: ViT-L/14 > ViT-B/16 > RN101 > ViT-B/32 > RN50x4 > resnet152 > inception_v3
             - glacnet +0.01, cst CIDEr+0.01 BERTScore +0.04
             - the effect of normalization is small
     - [x] why ttnet performs worse than cst?

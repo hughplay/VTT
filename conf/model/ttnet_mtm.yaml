@@ -1,0 +1,21 @@
+defaults:
+  - _self_
+  - generate_cfg: top_k_top_p
+
+_target_: src.model.ttnet.TTNetMTM
+image_encoder: ViT-B/32
+dim: 512
+finetune_image_encoder: false
+num_context_layers: 2
+num_decoder_layers: 2
+decoder_context_fusion: add
+context_pos_emb: "relative"
+decoder_pos_emb: "relative"
+max_transformations: ${dataset.dataset_cfg.train.max_transformations}
+max_words: ${dataset.dataset_cfg.train.max_words}
+tie_embedding: false
+category_head: false
+topic_head: false
+head_dropout: 0.
+reconstruction_head: false
+mask_ratio: 0.15

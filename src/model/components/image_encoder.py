@@ -24,6 +24,7 @@ import logging
 from functools import wraps
 from itertools import chain
 
+import timm
 import torch
 from torch import nn
 from torchvision.models import inception, resnet
@@ -37,6 +38,9 @@ _MODELS = {
     "resnet": ["resnet18", "resnet34", "resnet50", "resnet101", "resnet152"],
     "inception_v3": ["inception_v3"],
     "clip": ["RN50", "RN101", "RN50x4", "RN50x16", "RN50x64", "ViT-B/32", "ViT-B/16", "ViT-L/14", "ViT-L/14@336px"],
+    "beit": ["beit_large_patch16_224"],
+    "swin": ["swin_large_patch4_window7_224"],
+    "vit": ["vit_large_patch16_224"]
 }
 # chain _MODEL values
 available_models = list(chain(*_MODELS.values()))
@@ -58,6 +62,9 @@ _INPUT_OUTPUT_DIM = {
     "ViT-B/16": {"input": 224, "output": 512},
     "ViT-L/14": {"input": 224, "output": 768},
     "ViT-L/14@336px": {"input": 336, "output": 768},
+    "beit_large_patch16_224": {"input": 224, "output": 1024},
+    "swin_large_patch4_window7_224": {"input": 224, "output": 1536},
+    "vit_large_patch16_224": {"input": 224, "output": 1024},
 }
 
 
@@ -191,6 +198,37 @@ class CLIPEncoder(nn.Module):
         return self.clip_visual(images)
 
 
+class PretrainedEncoder(nn.Module):
+    def __init__(
+        self,
+        name: str = "beit_large_patch16_224",
+        pretrained: bool = True,
+        promise_input_dim: int = 224,
+    ):
+        """Other ImageNet pretrained image encoders.
+
+        |                               | Input resolution | Embedding dimension |
+        |-------------------------------|------------------|---------------------|
+        | beit_large_patch16_224        |              224 |                1024 |
+        | swin_large_patch4_window7_224 |              224 |                1536 |
+        | vit_large_patch16_224         |              224 |                1024 |
+        """
+        super().__init__()
+
+        assert name in timm.list_models()
+        assert (
+            promise_input_dim == _INPUT_OUTPUT_DIM[name]["input"]
+        ), f"input dim must be {_INPUT_OUTPUT_DIM[name]['input']} for {name}"
+
+        self.model = timm.create_model(
+            name, pretrained=pretrained, num_classes=0
+        )
+        self.output_dim = self.model.num_features
+
+    def forward(self, images):
+        return self.model(images)
+
+
 class ImageEncoder(nn.Module):
     def __init__(
         self,
@@ -224,6 +262,10 @@ class ImageEncoder(nn.Module):
             self.encoder = CLIPEncoder(
                 self.name, self.pretrained, self.promise_input_dim
             )
+        else:
+            self.encoder = PretrainedEncoder(
+                self.name, self.pretrained, self.promise_input_dim
+            )
 
         self.finetune = finetune
         if not self.finetune:
@@ -254,3 +296,62 @@ class ImageEncoder(nn.Module):
             output = output + en_output
 
         return output
+
+
+class EarlyDiffImageEncoder(ImageEncoder):
+    def forward(self, states, states_mask):
+
+        B, N, C, H, W = states.size()
+
+        features = super().forward(states)
+
+        shifted_states = torch.zeros_like(states)
+        shifted_states[:, 1:, ...] = states[:, :-1, ...]
+        last_states_pos = torch.sum(states_mask, dim=-1) - 1
+        shifted_states[:, 0, ...] = states[torch.arange(B), last_states_pos]
+
+        diff = states - shifted_states
+        diff_features = super().forward(diff)
+
+        return features, diff_features
+
+
+class LateDiffImageEncoder(ImageEncoder):
+    def forward(self, states, states_mask):
+
+        B, N, C, H, W = states.size()
+
+        features = super().forward(states)
+
+        shifted_features = torch.zeros_like(features)
+        shifted_features[:, 1:, ...] = features[:, :-1, ...]
+        last_states_pos = torch.sum(states_mask, dim=-1) - 1
+        shifted_features[:, 0, ...] = features[torch.arange(B), last_states_pos]
+
+        diff_features = features - shifted_features
+
+        return features, diff_features
+
+
+class BiDiffImageEncoder(ImageEncoder):
+    def forward(self, states, states_mask):
+
+        B, N, C, H, W = states.size()
+
+        features = super().forward(states)
+        last_states_pos = torch.sum(states_mask, dim=-1) - 1
+
+        shifted_states = torch.zeros_like(states)
+        shifted_states[:, 1:, ...] = states[:, :-1, ...]
+        shifted_states[:, 0, ...] = states[torch.arange(B), last_states_pos]
+
+        early_diff = states - shifted_states
+        early_diff_features = super().forward(early_diff)
+
+        shifted_features = torch.zeros_like(features)
+        shifted_features[:, 1:, ...] = features[:, :-1, ...]
+        shifted_features[:, 0, ...] = features[torch.arange(B), last_states_pos]
+
+        late_diff_features = features - shifted_features
+
+        return features, early_diff_features, late_diff_features

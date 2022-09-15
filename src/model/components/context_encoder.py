@@ -294,3 +294,176 @@ class TransformerContext(nn.Module):
             )
         )
         return {"context": features, "attention": attn_maps}
+
+
+class FuseDiffContext(TransformerContext):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.project_diff = nn.Linear(self.input_dim * 2, self.input_dim)
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        diff_features: torch.Tensor,
+        states_mask: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+
+        features = torch.cat((features, diff_features), dim=-1)
+        features = self.project_diff(features)
+        return super().forward(features, states_mask)
+
+
+class AttentionDiffContext(TransformerContext):
+    def __init__(self, *args, diff_first=False, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.diff_first = diff_first
+        self.segment_embed = nn.Embedding(2, self.input_dim)
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        diff_features: torch.Tensor,
+        states_mask: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+
+        B, N, _ = features.size()
+
+        features = (
+            features
+            + self.pos_embed(features)
+            + self.segment_embed(
+                torch.zeros((B, N), device=features.device, dtype=torch.long)
+            )
+        )
+        diff_features = (
+            diff_features
+            + self.pos_embed(diff_features)
+            + self.segment_embed(
+                torch.ones((B, N), device=features.device, dtype=torch.long)
+            )
+        )
+        if self.diff_first:
+            concat_features = torch.cat((diff_features, features), dim=1)
+        else:
+            concat_features = torch.cat((features, diff_features), dim=1)
+        concat_mask = torch.cat((states_mask, states_mask), dim=1)
+        features, intermediates = self.encoder(
+            concat_features,
+            mask=concat_mask,
+            return_hiddens=True,
+        )
+        features = self.norm(features)
+        attn_maps = list(
+            map(
+                lambda t: t.post_softmax_attn,
+                intermediates.attn_intermediates,
+            )
+        )
+        return {"context": features, "attention": attn_maps}
+
+
+class CrossDiffContext(TransformerContext):
+    def __init__(self, *args, diff_first=True, **kwargs):
+        if "encoder_args" not in kwargs:
+            kwargs["encoder_args"] = {}
+        kwargs["encoder_args"]["cross_attend"] = True
+        super().__init__(*args, **kwargs)
+        self.diff_first = diff_first
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        diff_features: torch.Tensor,
+        states_mask: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+
+        features = features + self.pos_embed(features)
+        diff_features = diff_features + self.pos_embed(diff_features)
+        if self.diff_first:
+            features, intermediates = self.encoder(
+                diff_features,
+                context=features,
+                mask=states_mask,
+                context_mask=states_mask,
+                return_hiddens=True,
+            )
+        else:
+            features, intermediates = self.encoder(
+                features,
+                context=diff_features,
+                mask=states_mask,
+                context_mask=states_mask,
+                return_hiddens=True,
+            )
+        features = self.norm(features)
+        attn_maps = list(
+            map(
+                lambda t: t.post_softmax_attn,
+                intermediates.attn_intermediates,
+            )
+        )
+        return {"context": features, "attention": attn_maps}
+
+
+class AttentionBiDiffContext(TransformerContext):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.segment_embed = nn.Embedding(3, self.input_dim)
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        early_diff_features: torch.Tensor,
+        late_diff_features: torch.Tensor,
+        states_mask: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+
+        B, N, _ = features.size()
+
+        features = (
+            features
+            + self.pos_embed(features)
+            + self.segment_embed(
+                torch.empty(
+                    (B, N), device=features.device, dtype=torch.long
+                ).fill_(0)
+            )
+        )
+        early_diff_features = (
+            early_diff_features
+            + self.pos_embed(early_diff_features)
+            + self.segment_embed(
+                torch.empty(
+                    (B, N), device=features.device, dtype=torch.long
+                ).fill_(1)
+            )
+        )
+        late_diff_features = (
+            late_diff_features
+            + self.pos_embed(late_diff_features)
+            + self.segment_embed(
+                torch.empty(
+                    (B, N), device=features.device, dtype=torch.long
+                ).fill_(2)
+            )
+        )
+
+        concat_features = torch.cat(
+            (features, early_diff_features, late_diff_features), dim=1
+        )
+        concat_mask = torch.cat((states_mask, states_mask, states_mask), dim=1)
+        features, intermediates = self.encoder(
+            concat_features,
+            mask=concat_mask,
+            return_hiddens=True,
+        )
+        features = self.norm(features)
+        attn_maps = list(
+            map(
+                lambda t: t.post_softmax_attn,
+                intermediates.attn_intermediates,
+            )
+        )
+        return {"context": features, "attention": attn_maps}

@@ -102,6 +102,21 @@ def test_ctrl(config):
     return config
 
 
+def test_single(config):
+    config.dataset.single_data = True
+    return config
+
+
+def test_miss_random_one(config):
+    config.dataset.miss_mode = "random_one"
+    return config
+
+
+def test_miss_init_fin(config):
+    config.dataset.miss_mode = "init_fin_only"
+    return config
+
+
 # ======================================================
 # end of testing override functions
 # ======================================================

@@ -1,0 +1,20 @@
+\begin{table}[ht]
+\centering
+\small
+\caption{Ablation studies of key components.}
+\label{tab:key}
+\begin{tabular}{lllrrr}
+\toprule
+Diff. & MTM & Aux. & B@4 & C & BS \\
+\midrule
+ &  &  & 55.70 & 515.28 & 72.22 \\
+$\surd$ &  &  & 59.89 & 556.85 & 75.00 \\
+ & $\surd$ &  & 56.26 & 520.04 & 72.72 \\
+ &  & $\surd$ & 56.37 & 521.93 & 72.97 \\
+$\surd$ & $\surd$ &  & 60.39 & 562.25 & 75.62 \\
+$\surd$ &  & $\surd$ & 60.38 & 562.83 & 75.72 \\
+ & $\surd$ & $\surd$ & 56.91 & 527.62 & 73.54 \\
+$\surd$ & $\surd$ & $\surd$ & \textbf{61.22} & \textbf{570.63} & \textbf{76.25} \\
+\bottomrule
+\end{tabular}
+\end{table}

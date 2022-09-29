@@ -3,6 +3,7 @@ _target_: src.dataset.vtt.VTTDataModule
 batch_size: 32
 num_workers: 16
 pin_memory: true
+single_data: false
 
 dataset_cfg:
   train:

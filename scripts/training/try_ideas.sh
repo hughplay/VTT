@@ -62,3 +62,22 @@ python train.py experiment=ttnet_multitask_classify \
 
 # MTM
 python train.py experiment=ttnet_mtm
+
+# MTM + diff new
+python train.py experiment=sota_v4_diff \
+    model.diff_mode=late \
+    model.mask_ratio=0.15 \
+    model.zero_prob=0.8 \
+    model.random_prob=0.1 \
+    model.topic_head=false \
+    criterion.loss.w_classify=null \
+    criterion.loss.w_topic=null \
+    criterion.topic=false \
+    name=ttnet_sota_v4_w_mtm2_no_topic_w_diff \
+    logging.wandb.tags="[sota_v4]"
+
+# densecap normalize weight
+python train.py experiment=baseline_densecap \
+    model.normalize_weight=true \
+    name="baseline_densecap_norm" \
+    logging.wandb.tags="[final_base]"

@@ -1,12 +1,12 @@
 import torch
 from torch import nn
 
-from .components.context_encoder import GLocalContext
+from .components.context_encoder import PastFutureContext
 from .components.image_encoder import ImageEncoder
 from .components.text_decoder import ContextLSTMText
 
 
-class GLACNet(nn.Module):
+class DenseCap(nn.Module):
     def __init__(
         self,
         image_encoder="resnet152",
@@ -15,6 +15,7 @@ class GLACNet(nn.Module):
         num_lstm_layers=2,
         embed_dropout=0.1,
         lstm_dropout=0.5,
+        normalize_weight=False,
         generate_cfg={},
     ) -> None:
         super().__init__()
@@ -25,12 +26,10 @@ class GLACNet(nn.Module):
             output_dim=dim,
             batch_norm=True,
         )
-        self.context_encoder = GLocalContext(
+        self.context_encoder = PastFutureContext(
             input_dim=dim,
             hidden_dim=dim,
-            num_layers=num_lstm_layers,
-            bidirectional=True,
-            dropout=lstm_dropout,
+            normalize_weight=normalize_weight,
         )
         self.decoder = ContextLSTMText(
             context_dim=dim,

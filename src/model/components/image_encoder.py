@@ -250,14 +250,14 @@ class ImageEncoder(nn.Module):
         )
         if name not in available_models:
             raise ValueError(f"{name} is not available")
-        elif name in _MODELS["resnet"]:
-            self.encoder = ResNetEncoder(
-                self.name, self.pretrained, self.promise_input_dim
-            )
-        elif name in _MODELS["inception_v3"]:
-            self.encoder = InceptionEncoder(
-                self.name, self.pretrained, self.promise_input_dim
-            )
+        # elif name in _MODELS["resnet"]:
+        #     self.encoder = ResNetEncoder(
+        #         self.name, self.pretrained, self.promise_input_dim
+        #     )
+        # elif name in _MODELS["inception_v3"]:
+        #     self.encoder = InceptionEncoder(
+        #         self.name, self.pretrained, self.promise_input_dim
+        #     )
         elif name in _MODELS["clip"]:
             self.encoder = CLIPEncoder(
                 self.name, self.pretrained, self.promise_input_dim

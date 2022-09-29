@@ -38,17 +38,21 @@ class TellingLitModule(LightningModule):
     def _set_num_training_steps(self, scheduler_cfg):
         if "num_training_steps" in scheduler_cfg:
             scheduler_cfg = dict(scheduler_cfg)
-            if self.global_rank == 0:
-                logger.info("Computing number of training steps...")
-                num_training_steps = [self.trainer.estimated_stepping_batches]
-            else:
-                num_training_steps = [0]
-            torch.distributed.broadcast_object_list(
-                num_training_steps,
-                0,
-                group=torch.distributed.group.WORLD,
-            )
-            scheduler_cfg["num_training_steps"] = num_training_steps[0]
+            # if self.global_rank == 0:
+            #     logger.info("Computing number of training steps...")
+            #     num_training_steps = [self.trainer.estimated_stepping_batches]
+            # else:
+            #     num_training_steps = [0]
+            # torch.distributed.broadcast_object_list(
+            #     num_training_steps,
+            #     0,
+            #     group=torch.distributed.group.WORLD,
+            # )
+            # scheduler_cfg["num_training_steps"] = num_training_steps[0]
+            logger.info("Computing number of training steps...")
+            scheduler_cfg[
+                "num_training_steps"
+            ] = self.trainer.estimated_stepping_batches
 
             if self.global_rank == 0:
                 logger.info(

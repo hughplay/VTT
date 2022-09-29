@@ -1,0 +1,17 @@
+# @package _global_
+name: baseline_densecap
+notes: >-
+  Implementation of "Dense-Captioning Events in Videos"
+
+defaults:
+  - override /model: densecap
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+
+dataset:
+  transform_cfg:
+    train:
+      transform_mode: clip

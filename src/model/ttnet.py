@@ -1,4 +1,5 @@
 import torch
+from einops import repeat
 from torch import nn
 
 from src.dataset.vtt import CATEGORIES, TOPICS
@@ -458,7 +459,11 @@ class TTNetMTM(nn.Module):
         topic_head=True,
         head_dropout=0.0,
         reconstruction_head=True,
+        learned_mask=False,
         mask_ratio=-1.0,
+        sample_mask_prob=1.0,
+        zero_prob=1.0,
+        random_prob=0.0,
         generate_cfg={},
     ) -> None:
         super().__init__()
@@ -504,7 +509,15 @@ class TTNetMTM(nn.Module):
                 else nn.Identity()
             )
 
-        self.mask_ratio = mask_ratio
+        self.learned_mask = learned_mask
+        self.mask_ratio = min(1.0, mask_ratio)
+        self.sample_mask_prob = max(0.0, min(1.0, sample_mask_prob))
+        self.zero_prob = max(0.0, min(1.0, zero_prob))
+        self.random_prob = max(0.0, min(1.0 - self.zero_prob, random_prob))
+
+        if self.learned_mask:
+            self.mask = nn.Parameter(torch.zeros(dim))
+            nn.init.normal_(self.mask)
 
     def forward(
         self,
@@ -516,11 +529,25 @@ class TTNetMTM(nn.Module):
         features = self.image_encoder(states)
 
         if self.training and self.mask_ratio > 0:
-            masked_pos = (
-                torch.rand(states_mask.size(), device=states_mask.device)
-                < self.mask_ratio
+            # sample wise mask
+            mask_pos = (
+                torch.rand(states_mask.size(0), 1, device=states_mask.device)
+                < self.sample_mask_prob
             )
-            features[masked_pos] = 0
+            prob = torch.rand(states_mask.size(), device=states_mask.device)
+            prob = prob / self.mask_ratio
+            # unchanged, [zero_prob + random_prob, 1)
+            # zero, [random_prob, random_prob + zero_prob)
+            pos = prob < (self.zero_prob + self.random_prob)
+            if self.learned_mask:
+                n_mask, d = features[pos & mask_pos].size()
+                mask = repeat(self.mask, "d -> n d", n=n_mask, d=d)
+                features[pos & mask_pos] = mask
+            else:
+                features[pos & mask_pos] = 0
+            # random, [0, random_prob)
+            pos = prob < self.random_prob
+            features[pos & mask_pos] = torch.rand_like(features[pos & mask_pos])
 
         context = self.context_encoder(features, states_mask)
 
@@ -559,6 +586,7 @@ class TTNetDiff(nn.Module):
         self,
         image_encoder: str = "ViT-B/32",
         diff_mode: str = "early",
+        diff_only: bool = False,
         context_mode: str = "fuse",
         diff_first: bool = False,
         dim=512,
@@ -576,7 +604,11 @@ class TTNetDiff(nn.Module):
         topic_head=True,
         head_dropout=0.0,
         reconstruction_head=True,
+        learned_mask=False,
         mask_ratio=-1.0,
+        sample_mask_prob=1.0,
+        zero_prob=1.0,
+        random_prob=0.0,
         generate_cfg={},
     ) -> None:
         super().__init__()
@@ -593,6 +625,7 @@ class TTNetDiff(nn.Module):
             DiffEncoder = BiDiffImageEncoder
         else:
             raise ValueError(f"Unknown diff mode {diff_mode}")
+        self.diff_only = diff_only
         self.image_encoder = DiffEncoder(
             name=image_encoder,
             finetune=finetune_image_encoder,
@@ -607,7 +640,14 @@ class TTNetDiff(nn.Module):
                 max_seq_len=max_transformations + 1,
             )
         elif context_mode == "attention":
-            if diff_mode == "early_and_late":
+            if diff_only:
+                self.context_encoder = TransformerContext(
+                    input_dim=dim,
+                    num_layers=num_context_layers,
+                    position_embedding=context_pos_emb,
+                    max_seq_len=max_transformations + 1,
+                )
+            elif diff_mode == "early_and_late":
                 self.context_encoder = AttentionBiDiffContext(
                     input_dim=dim,
                     num_layers=num_context_layers,
@@ -659,7 +699,15 @@ class TTNetDiff(nn.Module):
                 else nn.Identity()
             )
 
-        self.mask_ratio = mask_ratio
+        self.learned_mask = learned_mask
+        self.mask_ratio = min(1.0, mask_ratio)
+        self.sample_mask_prob = max(0.0, min(1.0, sample_mask_prob))
+        self.zero_prob = max(0.0, min(1.0, zero_prob))
+        self.random_prob = max(0.0, min(1.0 - self.zero_prob, random_prob))
+
+        if self.learned_mask:
+            self.mask = nn.Parameter(torch.zeros(dim))
+            nn.init.normal_(self.mask)
 
     def forward(
         self,
@@ -669,14 +717,32 @@ class TTNetDiff(nn.Module):
         label_mask: torch.Tensor = None,
     ):
         features_list = self.image_encoder(states, states_mask)
+        if self.diff_only:
+            features_list = features_list[1:]
 
         if self.training and self.mask_ratio > 0:
+            # sample wise mask
+            mask_pos = (
+                torch.rand(states_mask.size(0), 1, device=states_mask.device)
+                < self.sample_mask_prob
+            )
             for features in features_list:
-                masked_pos_features = (
-                    torch.rand(states_mask.size(), device=states_mask.device)
-                    < self.mask_ratio
+                prob = torch.rand(states_mask.size(), device=states_mask.device)
+                prob = prob / self.mask_ratio
+                # unchanged, [zero_prob + random_prob, 1)
+                # zero, [random_prob, random_prob + zero_prob)
+                pos = prob < (self.zero_prob + self.random_prob)
+                if self.learned_mask:
+                    n_mask, d = features[pos & mask_pos].size()
+                    mask = repeat(self.mask, "d -> n d", n=n_mask, d=d)
+                    features[pos & mask_pos] = mask
+                else:
+                    features[pos & mask_pos] = 0
+                # random, [0, random_prob)
+                pos = prob < self.random_prob
+                features[pos & mask_pos] = torch.rand_like(
+                    features[pos & mask_pos]
                 )
-                features[masked_pos_features] = 0
 
         context = self.context_encoder(*features_list, states_mask)
 

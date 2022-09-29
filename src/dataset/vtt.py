@@ -1,4 +1,5 @@
 import logging
+import random
 from pathlib import Path
 from typing import Any, Dict
 
@@ -167,12 +168,172 @@ class VTTDataset(Dataset):
         return res
 
 
+class VTTSingleDataset(VTTDataset):
+    def __init__(
+        self,
+        split: str = "train",
+        data_root: str = "/data/vtt",
+        meta_path: str = "meta/vtt.jsonl",
+        state_root: str = "states",
+        frame_root: str = "frames",
+        max_transformations: int = 12,
+        max_words: int = 24,
+        prefix_start: bool = True,
+        suffix_end: bool = True,
+        load_trans_frames: bool = False,
+        n_segment: int = 3,
+        frames_per_segment: int = 1,
+        transform_cfg: Dict[str, Any] = {},
+        return_raw_text: bool = False,
+    ):
+        super().__init__(
+            split,
+            data_root,
+            meta_path,
+            state_root,
+            frame_root,
+            max_transformations,
+            max_words,
+            prefix_start,
+            suffix_end,
+            load_trans_frames,
+            n_segment,
+            frames_per_segment,
+            transform_cfg,
+            return_raw_text,
+        )
+        self.data_map = []
+        for i, sample in enumerate(self.data):
+            for j in range(len(sample["annotation"])):
+                self.data_map.append((i, j))
+
+    def __len__(self):
+        return len(self.data_map)
+
+    def _read_states(self, sample, step):
+        """n_states * C * H * W"""
+        n_states = len(sample["annotation"]) + 1
+        states_path_list = [
+            self.state_root / f"{sample['id']}_{n_states}_{i}.jpg"
+            for i in range(n_states)
+        ][step : step + 2]
+        states = torch.zeros(
+            self.max_states,
+            self.CHANNEL,
+            self.transform.n_px,
+            self.transform.n_px,
+            dtype=torch.float,
+        )
+        mask = torch.zeros(self.max_states, dtype=torch.bool)
+
+        # the state of ConsistTransform is changed here only once for each sample
+        # so that all states, frames are augmented (resize, crop, flip) with the
+        # same arguments
+        for (i, state_path) in enumerate(states_path_list):
+            states[i] = self.transform(
+                Image.open(str(state_path)), change_state=(i == 0)
+            )
+        mask[: len(states_path_list)] = True
+        return states, mask
+
+    def _read_labels(self, sample, step):
+        """n_trans * n_words"""
+        ids = torch.zeros(
+            self.max_transformations, self.max_words, dtype=torch.int64
+        )
+        mask = torch.zeros(
+            self.max_transformations, self.max_words, dtype=torch.bool
+        )
+
+        for i, step in enumerate(sample["annotation"][step : step + 1]):
+            words = torch.tensor(
+                ([self.tokenizer.start_idx] if self.prefix_start else [])
+                + self.tokenizer.encode(step["label"])
+                + ([self.tokenizer.end_idx] if self.suffix_end else [])
+            )
+            ids[i, : len(words)] = words
+            mask[i, : len(words)] = True
+
+        return ids, mask
+
+    def __getitem__(self, index):
+        data_index, step = self.data_map[index]
+        meta = self.data[data_index]
+        states, states_mask = self._read_states(meta, step)
+        label_ids, label_mask = self._read_labels(meta, step)
+        category, topic = self._read_categories(meta)
+        res = {
+            "label_ids": label_ids,
+            "label_mask": label_mask,
+            "states": states,
+            "states_mask": states_mask,
+            "category": category,
+            "topic": topic,
+            "index": index,
+        }
+        if self.return_raw_text:
+            res["text"] = [meta["annotation"][step]["label"]]
+        return res
+
+
+class VTTMissingDataset(VTTDataset):
+    def __init__(
+        self,
+        split: str = "train",
+        data_root: str = "/data/vtt",
+        meta_path: str = "meta/vtt.jsonl",
+        state_root: str = "states",
+        frame_root: str = "frames",
+        max_transformations: int = 12,
+        max_words: int = 24,
+        prefix_start: bool = True,
+        suffix_end: bool = True,
+        load_trans_frames: bool = False,
+        n_segment: int = 3,
+        frames_per_segment: int = 1,
+        transform_cfg: Dict[str, Any] = {},
+        return_raw_text: bool = False,
+        miss_mode: str = "random_one",
+    ):
+        super().__init__(
+            split,
+            data_root,
+            meta_path,
+            state_root,
+            frame_root,
+            max_transformations,
+            max_words,
+            prefix_start,
+            suffix_end,
+            load_trans_frames,
+            n_segment,
+            frames_per_segment,
+            transform_cfg,
+            return_raw_text,
+        )
+        self.miss_mode = miss_mode
+
+    def _read_states(self, sample):
+        states, mask = super()._read_states(sample)
+        n_states = len(sample["annotation"]) + 1
+        if self.miss_mode == "random_one":
+            random_miss = random.choice(range(n_states))
+            states[random_miss] = 0
+        elif self.miss_mode == "init_fin_only":
+            states[1 : n_states - 1] = 0
+        else:
+            raise NotImplementedError(f"Unknown miss_mode: {self.miss_mode}")
+        return states, mask
+
+
 class VTTDataModule(LightningDataModule):
     def __init__(
         self,
         batch_size: int = 32,
         num_workers: int = 6,
         pin_memory: bool = False,
+        single_data: bool = False,
+        miss_mode: str = None,
         dataset_cfg: Dict[str, Any] = None,
         transform_cfg: Dict[str, Any] = None,
     ):
@@ -182,6 +343,8 @@ class VTTDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
+        self.single_data = single_data
+        self.miss_mode = miss_mode
         self.dataset_cfg = dataset_cfg
         self.transform_cfg = transform_cfg
 
@@ -193,9 +356,21 @@ class VTTDataModule(LightningDataModule):
             dataset_cfg = self.dataset_cfg["eval"]
             transform_cfg = self.transform_cfg["eval"]
 
-        dataset = VTTDataset(
-            **dataset_cfg, split=split, transform_cfg=transform_cfg
-        )
+        if self.single_data:
+            dataset = VTTSingleDataset(
+                **dataset_cfg, split=split, transform_cfg=transform_cfg
+            )
+        elif self.miss_mode is not None:
+            dataset = VTTMissingDataset(
+                **dataset_cfg,
+                split=split,
+                transform_cfg=transform_cfg,
+                miss_mode=self.miss_mode,
+            )
+        else:
+            dataset = VTTDataset(
+                **dataset_cfg, split=split, transform_cfg=transform_cfg
+            )
 
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,

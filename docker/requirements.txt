@@ -34,6 +34,7 @@ scikit-learn
 # =============================================
 opencv-python
 pycocoevalcap
+timm
 
 # =============================================
 # Nautral Language Processing

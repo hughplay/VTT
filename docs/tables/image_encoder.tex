@@ -1,0 +1,22 @@
+\begin{table}[ht]
+\centering
+\small
+\caption{Performance of different image encoders on the VTT dataset}
+\label{tab:image_encoder}
+\begin{tabular}{llrr|rrr}
+\toprule
+ &  & Params & Acc & B@4 & C & BS \\
+\midrule
+\multirow[c]{5}{*}{\rotatebox[origin=c]{90}{\makecell{ImageNet\\Pretrained\footnotemark[1]}}} & InceptionV3 & 23M & 77.44 & 44.88 & 404.85 & 61.75 \\
+ & ResNet152 & 59M & 82.82 & 50.71 & 464.01 & 67.40 \\
+ & Swin-L & 196M & 86.32 & 57.36 & 531.51 & 73.03 \\
+ & ViT-L & 304M & 85.84 & 58.26 & 540.46 & 73.59 \\
+ & BEiT-L & 306M & 87.48 & 41.57 & 370.00 & 58.80 \\
+\multirow[c]{5}{*}{\rotatebox[origin=c]{90}{\makecell{Image-text\\Pretrained\footnotemark[2]}}} & RN50 & 39M & 73.30 & 53.35 & 491.80 & 69.79 \\
+ & RN101 & 57M & 75.70 & 53.78 & 495.30 & 70.08 \\
+ & ViT-B/16 & 86M & 80.20 & 57.73 & 534.92 & 73.37 \\
+ & ViT-B/32 & 88M & 76.10 & 55.21 & 510.08 & 71.27 \\
+ & ViT-L/14 & 304M & 83.90 & \textbf{61.22} & \textbf{570.63} & \textbf{76.25} \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -22,6 +22,7 @@ from src.utils.timetool import with_time
 from .components.pycocoevalcap.cider.cider import CiderScorer as coco_cider
 from .components.pycocoevalcap.meteor.meteor import Meteor as coco_meteor
 from .components.pycocoevalcap.rouge.rouge import Rouge as coco_rouge
+from .components.pycocoevalcap.spice.spice import Spice as coco_spice
 from .components.pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 
 # disable the warning from huggingface:
@@ -250,6 +251,36 @@ class CIDEr(Metric):
         return self.score
 
 
+class SPICE(Metric):
+    is_differentiable = False
+    higher_is_better = True
+    full_state_update = False
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.spice = coco_spice()
+        self.tokenizer = PTBTokenizer()
+
+        self.add_state("score", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state(
+            "score_count", default=torch.tensor(0), dist_reduce_fx="sum"
+        )
+        self.add_state("scores", default=[], dist_reduce_fx="cat")
+
+    def update(self, preds: Sequence[str], target: Sequence[str]) -> None:
+        preds = self.tokenizer.tokenize(coco_fmt_sequences(preds))
+        target = self.tokenizer.tokenize(coco_fmt_sequences(target))
+        _, scores = self.spice.compute_score(target, preds)
+        scores = [item["All"]["f"] for item in scores]
+        self.score += sum(scores)
+        self.scores.append(torch.tensor(scores).to(self.score.device))
+        self.score_count += len(scores)
+
+    @cat_states
+    def compute(self):
+        return self.score / self.score_count if self.score_count else None
+
+
 class BERTScore(Metric):
 
     is_differentiable = False
@@ -426,6 +457,7 @@ class TTCriterion(nn.Module):
         self.rouge = ROUGE()
         self.meteor = METEOR()
         self.cider = CIDEr()
+        self.spice = SPICE()
         self.bert_score = BERTScore(
             model_name_or_path=bert_score_model,
             rescale_with_baseline=True,
@@ -440,6 +472,7 @@ class TTCriterion(nn.Module):
             ("ROUGE", self.rouge),
             ("METEOR", self.meteor),
             ("CIDEr", self.cider),
+            ("SPICE", self.spice),
             ("BERTScore", self.bert_score),
         ]
 

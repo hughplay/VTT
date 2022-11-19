@@ -34,6 +34,7 @@ def test_metrics():
     assert "ROUGE" in result
     assert "METEOR" in result
     assert "CIDEr" in result
+    assert "SPICE" in result
     assert "BERTScore" in result
 
     # the empty string should be ignored
@@ -67,6 +68,7 @@ def test_metrics_cuda():
     assert "ROUGE" in result
     assert "METEOR" in result
     assert "CIDEr" in result
+    assert "SPICE" in result
     assert "BERTScore" in result
 
     # the empty string should be ignored

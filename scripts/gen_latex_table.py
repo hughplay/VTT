@@ -14,6 +14,7 @@ RENAME = {
     "METEOR": "M",
     "ROUGE-L": "R",
     "CIDEr": "C",
+    "SPICE": "S",
     "BERT-S": "BS",
 }
 
@@ -138,6 +139,7 @@ def baseline_table(filter_runs: Callable):
         results["METEOR"].append(run.summary["test/METEOR"] * 100)
         results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
         results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["SPICE"].append(run.summary["test/SPICE"] * 100)
         results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
 
     df = pd.DataFrame(results)
@@ -152,14 +154,15 @@ def baseline_table(filter_runs: Callable):
     str_latex = gen_latex(
         style,
         "Performance on the test set of VTT dataset. "
-        "B@4/M/R/C/BS are short for "
-        "BLEU@4 / METEOR / ROUGE-L / CIDEr / BERT-Score. "
+        "B@4/M/R/C/S/BS are short for "
+        "BLEU@4 / METEOR / ROUGE-L / CIDEr / SPICE / BERT-Score. "
         "The architecture shows image encoder / context encoder "
-        "/ transformation decoder. * indicates to use CLIP as the image encoder "
+        "/ transformation decoder. * indicates to use CLIP "
         "for a fair comparison.",
         save_path="docs/tables/baseline.tex",
         label="tab:baseline",
-        column_format="lrrrrrrr",
+        column_format="lrrrrrrrr",
+        position="t",
     )
 
     lines = str_latex.split("\n")
@@ -168,6 +171,8 @@ def baseline_table(filter_runs: Callable):
         if line.startswith("TTNet$"):
             new_lines.append("\\midrule")
         new_lines.append(line)
+        if line.startswith("\\label"):
+            new_lines.append("\\setlength{\\tabcolsep}{4pt}")
     str_latex = "\n".join(new_lines)
     return str_latex
 
@@ -397,6 +402,97 @@ def diff_table(filter_runs: Callable):
     )
 
 
+def mask_table(filter_runs: Callable):
+    filters = {
+        "$and": [
+            {"tags": {"$in": ["sota_v5"]}},
+            {"tags": {"$in": ["mask"]}},
+        ],
+    }
+    runs = filter_runs(filters)
+    results = defaultdict(list)
+    for run in runs:
+        mask_ratio = run.config["model/mask_ratio"]
+        if mask_ratio < 0:
+            mask_ratio = 0.0
+        results["Mask Ratio"].append(f"{mask_ratio * 100:.0f}%")
+
+        results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
+        results["METEOR"].append(run.summary["test/METEOR"] * 100)
+        results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
+        results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
+
+    df = pd.DataFrame(results)
+    df = df.sort_values(by=["Mask Ratio"])
+
+    df = df.drop(columns=["METEOR", "ROUGE-L"])
+
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
+    style = df.style.highlight_max(
+        axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
+    )
+    style = style.format(precision=2).hide(axis="index")
+
+    return gen_latex(
+        style,
+        "Ablation on the mask ratio.",
+        label="tab:mask_ratio",
+        save_path="docs/tables/mask_ratio.tex",
+        column_format="crrr",
+        position="t",
+    )
+
+
+def mask_sample_table(filter_runs: Callable):
+    filters = {
+        "$and": [
+            {"tags": {"$in": ["sota_v5"]}},
+            {"tags": {"$in": ["sample_mask"]}},
+        ],
+    }
+    runs = filter_runs(filters)
+    results = defaultdict(list)
+    for run in runs:
+        if run.config["model/mask_ratio"] < 0:
+            sample_mask_prob = 0.0
+        else:
+            sample_mask_prob = run.config["model/sample_mask_prob"]
+        results["Sample Ratio"].append(f"{sample_mask_prob*100:.0f}%")
+
+        results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
+        results["METEOR"].append(run.summary["test/METEOR"] * 100)
+        results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
+        results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
+
+    df = pd.DataFrame(results)
+    df = df.sort_values(by=["Sample Ratio"])
+
+    df = df.drop(columns=["METEOR", "ROUGE-L"])
+
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
+    style = df.style.highlight_max(
+        axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
+    )
+    style = style.format(precision=2).hide(axis="index")
+
+    return gen_latex(
+        style,
+        "Ablation on sample ratio.",
+        label="tab:mask_sample_ratio",
+        save_path="docs/tables/mask_sample_ratio.tex",
+        column_format="crrr",
+        position="t",
+    )
+
+
 def classify_table(filter_runs: Callable):
     filters = {
         "$and": [
@@ -536,6 +632,5 @@ if __name__ == "__main__":
     parser.add_argument(
         "--caption", default="Model performance on the VTT dataset."
     )
-    parser.add_argument("--position", default="ht")
     args = parser.parse_args()
     main(args)

@@ -293,46 +293,94 @@
 #     criterion.loss.w_category=0.1 \
 #     logging.wandb.tags="[sota_v5,key]"
 
+# # ====================
+# # classify ablation
+# # ====================
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_final_wclass_1_wcat_0_w_topic_0.25 \
+#     criterion.loss.w_classify=1. \
+#     criterion.loss.w_category=0. \
+#     criterion.loss.w_topic=0.25 \
+#     logging.wandb.tags="[sota_v5,full]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_final_wclass_1_wcat_0.0625_w_topic_0 \
+#     criterion.loss.w_classify=1. \
+#     criterion.loss.w_category=0.0625 \
+#     criterion.loss.w_topic=0. \
+#     logging.wandb.tags="[sota_v5,full]"
+
+# # ====================
+# # difference ablation
+# # ====================
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_final_early \
+#     model.diff_mode="early" \
+#     logging.wandb.tags="[sota_v5,full]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_final_early_and_late \
+#     model.diff_mode="early_and_late" \
+#     logging.wandb.tags="[sota_v5,full]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_final_early_only \
+#     model.diff_mode="early" \
+#     model.diff_only=true \
+#     logging.wandb.tags="[sota_v5,full]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_final_late_only \
+#     model.diff_mode="late" \
+#     model.diff_only=true \
+#     logging.wandb.tags="[sota_v5,full]"
+
+# # ====================
+# # mask ablation
+# # ====================
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_mask_0.05 \
+#     model.mask_ratio=0.05 \
+#     logging.wandb.tags="[sota_v5,mask]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_mask_0.1 \
+#     model.mask_ratio=0.1 \
+#     logging.wandb.tags="[sota_v5,mask]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_mask_0.2 \
+#     model.mask_ratio=0.2 \
+#     logging.wandb.tags="[sota_v5,mask]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_mask_0.25 \
+#     model.mask_ratio=0.25 \
+#     logging.wandb.tags="[sota_v5,mask]"
+
+# python train.py experiment=sota_v5_final \
+#     name=ttnet_sota_v5_mask_0.3 \
+#     model.mask_ratio=0.3 \
+#     logging.wandb.tags="[sota_v5,mask]"
+
 # ====================
-# classify ablation
+# sample mask ablation
 # ====================
 
 python train.py experiment=sota_v5_final \
-    name=ttnet_sota_v5_final_wclass_1_wcat_0_w_topic_0.25 \
-    criterion.loss.w_classify=1. \
-    criterion.loss.w_category=0. \
-    criterion.loss.w_topic=0.25 \
-    logging.wandb.tags="[sota_v5,full]"
+    name=ttnet_sota_v5_sample_mask_0.25 \
+    model.sample_mask_prob=0.25 \
+    logging.wandb.tags="[sota_v5,sample_mask]"
 
 python train.py experiment=sota_v5_final \
-    name=ttnet_sota_v5_final_wclass_1_wcat_0.0625_w_topic_0 \
-    criterion.loss.w_classify=1. \
-    criterion.loss.w_category=0.0625 \
-    criterion.loss.w_topic=0. \
-    logging.wandb.tags="[sota_v5,full]"
-
-# ====================
-# difference ablation
-# ====================
+    name=ttnet_sota_v5_sample_mask_0.75 \
+    model.sample_mask_prob=0.75 \
+    logging.wandb.tags="[sota_v5,sample_mask]"
 
 python train.py experiment=sota_v5_final \
-    name=ttnet_sota_v5_final_early \
-    model.diff_mode="early" \
-    logging.wandb.tags="[sota_v5,full]"
-
-python train.py experiment=sota_v5_final \
-    name=ttnet_sota_v5_final_early_and_late \
-    model.diff_mode="early_and_late" \
-    logging.wandb.tags="[sota_v5,full]"
-
-python train.py experiment=sota_v5_final \
-    name=ttnet_sota_v5_final_early_only \
-    model.diff_mode="early" \
-    model.diff_only=true \
-    logging.wandb.tags="[sota_v5,full]"
-
-python train.py experiment=sota_v5_final \
-    name=ttnet_sota_v5_final_late_only \
-    model.diff_mode="late" \
-    model.diff_only=true \
-    logging.wandb.tags="[sota_v5,full]"
+    name=ttnet_sota_v5_sample_mask_1 \
+    model.sample_mask_prob=1. \
+    logging.wandb.tags="[sota_v5,sample_mask]"

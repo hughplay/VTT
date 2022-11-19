@@ -32,6 +32,27 @@
 
 ## Currently Working
 
+## 2022-11-19 23:55:32
+
+- [x] mask ratio ablation
+    - start: 2022-11-09 10:26:39
+    - expected end: 2022-11-09 22:00:00
+    - [x] mask table
+- [x] sample mask ablation
+    - start: 2022-11-09 22:59:23
+    - expected end: 2022-11-10 10:30:00
+- [x] add SPICE
+    - [SPICE: Semantic Propositional Image Caption Evaluation](https://arxiv.org/pdf/1607.08822.pdf)
+    - [ ] silent the print from SPICE
+- [x] human evaluation specification
+    - [Best practices for the human evaluation of automatically generated text](https://aclanthology.org/W19-8643.pdf)
+- [x] human evaluation program
+- [x] cross task annotation
+    - Make Bicerin, oueddsUmOHI
+
+
+## 2022.09.29
+
 Time Table:
 
 - 09.20 24:00

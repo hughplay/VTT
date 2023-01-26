@@ -49,14 +49,26 @@ class GenerationLoss(nn.Module):
     ) -> torch.Tensor:
 
         logits = outputs["logits"]
-        logits = shift_tensor(logits, self.logit_shift, dim=2)
-        logits = rearrange(logits, "B N L C -> B C N L")
+        if logits.ndim == 4:
+            shift_dim = 2
+        elif logits.ndim == 3:
+            shift_dim = 1
+        else:
+            raise ValueError(f"Invalid logits dimension: {logits.ndim}")
+
+        logits = shift_tensor(logits, self.logit_shift, dim=shift_dim)
+        if logits.ndim == 4:
+            logits = rearrange(logits, "B N L C -> B C N L")
+        elif logits.ndim == 3:
+            logits = rearrange(logits, "B L C -> B C L")
 
         target = outputs["label_ids"]
-        target = shift_tensor(target, self.label_shift, dim=2)
+        target = shift_tensor(target, self.label_shift, dim=shift_dim)
 
         mask = outputs["label_mask"]
-        mask = shift_tensor(mask, self.label_shift, dim=2, shift_fill=False)
+        mask = shift_tensor(
+            mask, self.label_shift, dim=shift_dim, shift_fill=False
+        )
 
         target = target * mask + IGNORE_INDEX * (~mask)
         loss = self.loss(logits, target)

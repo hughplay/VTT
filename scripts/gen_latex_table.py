@@ -1,7 +1,6 @@
 import argparse
 import sys
 from collections import defaultdict
-from cProfile import label
 from pathlib import Path
 from typing import Callable
 

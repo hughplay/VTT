@@ -66,12 +66,30 @@ class SimpleGenerationMixin:
     first_hit = True
 
     def prepare_initial_input_ids(self, **model_kwargs):
-        B, N = model_kwargs["trans_mask"].size()
-        input_ids = (
-            torch.empty((B, N, 1), device=model_kwargs["trans_mask"].device)
-            .fill_(self.start_idx)
-            .long()
-        )
+        # for generating transformation descriptions: B x N x 1
+        if "trans_mask" in model_kwargs:
+            B, N = model_kwargs["trans_mask"].size()
+            input_ids = (
+                torch.empty((B, N, 1), device=model_kwargs["trans_mask"].device)
+                .fill_(self.start_idx)
+                .long()
+            )
+
+        # for generating pure text: B x 1
+        elif "embedding" in model_kwargs:
+            B, _ = model_kwargs["embedding"].size()
+            input_ids = (
+                torch.empty((B, 1), device=model_kwargs["embedding"].device)
+                .fill_(self.start_idx)
+                .long()
+            )
+
+        else:
+            raise ValueError(
+                "No valid input for generation, "
+                "expecting either `trans_mask` or `embedding`"
+            )
+
         return input_ids
 
     def prepare_model_inputs(
@@ -118,6 +136,8 @@ class SimpleGenerationMixin:
         if input_ids is None:
             input_ids = self.prepare_initial_input_ids(**model_kwargs)
 
+        n_dim = input_ids.dim()
+
         do_sample = self.generate_cfg.get("do_sample", False)
         temperature = self.generate_cfg.get("temperature", 1.0)
         max_words = self.generate_cfg.get("max_words", 24)
@@ -132,12 +152,14 @@ class SimpleGenerationMixin:
 
             if do_sample:
                 probs = F.softmax(next_token_logits / temperature, dim=-1)
-                B, N, W = probs.size()
-                probs = rearrange(probs, "B N W -> (B N) W", B=B, N=N, W=W)
+                if n_dim == 3:
+                    B, N, W = probs.size()
+                    probs = rearrange(probs, "B N W -> (B N) W", B=B, N=N, W=W)
                 next_tokens = torch.multinomial(probs, num_samples=1)
-                next_tokens = rearrange(
-                    next_tokens, "(B N) W -> B N W", B=B, N=N, W=1
-                )
+                if n_dim == 3:
+                    next_tokens = rearrange(
+                        next_tokens, "(B N) W -> B N W", B=B, N=N, W=1
+                    )
             else:
                 next_tokens = torch.argmax(
                     next_token_logits, dim=-1, keepdim=True
@@ -145,7 +167,7 @@ class SimpleGenerationMixin:
 
             input_ids = torch.cat([input_ids, next_tokens], dim=-1)
 
-            if input_ids.size(2) >= max_words:
+            if input_ids.size(-1) >= max_words:
                 break
 
         return {"sequence": input_ids}

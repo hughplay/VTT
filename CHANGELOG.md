@@ -32,6 +32,24 @@
 
 ## Currently Working
 
+- [ ] design a structure constrained model for VTT
+    - [x] provide definition
+    - [ ] design models
+        - [ ] image encoder decoder
+            - [x] stable diffusion
+            - [ ] dalle2 (dalle2-laion)
+        - [ ] text encoder decoder
+            - [ ] decap:
+            - [ ] preprocess data
+              -  WikiHow: https://github.com/mahnazkoupaee/WikiHow-Dataset
+              - [x] split dataset, filter out tokens greater than 77
+              - [x] wikihow text to clip embedding
+                - lmdb-embeddings is very convenient
+            - issue: testing results seems to be not good, test on coin descriptions
+              - [ ] add a coin text dataset, and added it to the test data module
+
+
+
 ## 2022-11-19 23:55:32
 
 - [x] mask ratio ablation

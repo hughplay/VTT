@@ -1,0 +1,6 @@
+_target_: src.criterion.text.TextCriterion
+loss:
+  _target_: src.criterion.loss.GenerationLoss
+  logit_shift: 0
+  label_shift: -1
+bert_score_model: "/data/pretrain/transformers/roberta-large"

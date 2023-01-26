@@ -137,7 +137,7 @@ def test(
     logdir = Path(logdir).expanduser()
     os.chdir(logdir)
 
-    # load expriment record from logdir
+    # load experiment record from logdir
     experiment = Experiment(logdir, wandb_entity=wandb_entity)
 
     # deal with update_config_func & metrics_prefix

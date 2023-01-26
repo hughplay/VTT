@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+  - generate_cfg: top_k_top_p
+
+_target_: src.model.components.clip_text_autoencoder.CLIPAutoEncoder
+encoder_name: ViT-B/32
+init_encoder: false
+num_decoder_layers: 2
+mode: "fusion"

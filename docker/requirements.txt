@@ -35,6 +35,7 @@ scikit-learn
 opencv-python
 pycocoevalcap
 timm
+diffusers
 
 # =============================================
 # Nautral Language Processing
@@ -44,6 +45,7 @@ spacy
 nltk
 ftfy
 bert_score==0.3.11
+wordcloud
 
 # =============================================
 # Utils
@@ -62,6 +64,7 @@ ray             # for distributed running of tasks
 netron          # visualize PyTorch models
 gradio          # for demo
 bokeh           # plot figures
+lmdb-embeddings
 
 # =============================================
 # Linters

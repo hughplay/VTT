@@ -8,7 +8,7 @@ from pytorch_lightning.utilities.memory import get_model_size_mb
 logger = logging.getLogger(__name__)
 
 
-class TellingLitModule(LightningModule):
+class TextDecodingLitModule(LightningModule):
     def __init__(self, cfg: Dict[str, Any] = None):
         super().__init__()
 
@@ -55,27 +55,6 @@ class TellingLitModule(LightningModule):
             rank_zero_only=True,
             logger=True,
         )
-        if hasattr(self.model, "image_encoder"):
-            self.log(
-                "model_size/image_encoder",
-                get_model_size_mb(self.model.image_encoder),
-                rank_zero_only=True,
-                logger=True,
-            )
-        if hasattr(self.model, "context_encoder"):
-            self.log(
-                "model_size/context_encoder",
-                get_model_size_mb(self.model.context_encoder),
-                rank_zero_only=True,
-                logger=True,
-            )
-        if hasattr(self.model, "decoder"):
-            self.log(
-                "model_size/decoder",
-                get_model_size_mb(self.model.decoder),
-                rank_zero_only=True,
-                logger=True,
-            )
 
     def step(
         self,
@@ -92,21 +71,18 @@ class TellingLitModule(LightningModule):
             - exclude evaluation metrics
         - generate from scratch
         """
-        states = batch["states"]
-        states_mask = batch["states_mask"]
         label_ids = batch["label_ids"]
         label_mask = batch["label_mask"]
+        embedding = batch["embedding"]
 
         if generate_from_scratch:
             inputs = {
-                "states": states,
-                "states_mask": states_mask,
+                "embedding": embedding,
             }
             compute_loss = False
         else:
             inputs = {
-                "states": states,
-                "states_mask": states_mask,
+                "embedding": embedding,
                 "label_ids": label_ids,
                 "label_mask": label_mask,
             }
@@ -116,8 +92,6 @@ class TellingLitModule(LightningModule):
             {
                 "label_ids": label_ids,
                 "label_mask": label_mask,
-                "category": batch["category"],
-                "topic": batch["topic"],
                 "index": batch["index"],
             }
         )
@@ -147,7 +121,12 @@ class TellingLitModule(LightningModule):
         return outputs["loss"]
 
     def validation_step(self, batch: Any, batch_idx: int):
-        outputs = self.step(batch, update_eval=True, generate_from_scratch=True)
+        outputs = self.step(
+            batch,
+            update_eval=True,
+            generate_from_scratch=True,
+            exclude_eval_metrics=["SPICE", "BERTScore"],
+        )
         return outputs
 
     def validation_epoch_end(self, outputs: List[Any]):
@@ -162,7 +141,12 @@ class TellingLitModule(LightningModule):
         self.criterion.reset()
 
     def test_step(self, batch: Any, batch_idx: int):
-        outputs = self.step(batch, update_eval=True, generate_from_scratch=True)
+        outputs = self.step(
+            batch,
+            update_eval=True,
+            generate_from_scratch=True,
+            exclude_eval_metrics=["SPICE"],
+        )
         return outputs
 
     def test_epoch_end(self, outputs: List[Any]):

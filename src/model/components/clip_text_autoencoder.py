@@ -70,12 +70,12 @@ class CLIPAutoEncoder(nn.Module):
 
         if init_encoder:
             self.text_encoder = TextCLIP(name=self.encoder_name)
-        embedding_dim = _INPUT_OUTPUT_DIM[self.encoder_name]["output"]
+        self.c_embed = _INPUT_OUTPUT_DIM[self.encoder_name]["output"]
 
         if mode == "fusion":
             self.text_decoder = CLIPFusionDecoder(
-                embedding_dim=embedding_dim,
-                hidden_dim=embedding_dim,
+                embedding_dim=self.c_embed,
+                hidden_dim=self.c_embed,
                 num_layers=self.num_decoder_layers,
                 generate_cfg=self.generate_cfg,
             )

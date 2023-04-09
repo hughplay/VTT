@@ -323,7 +323,7 @@ def key_table(filter_runs: Callable):
         ]
     ]
 
-    df = df.drop(columns=["METEOR", "ROUGE-L"])
+    # df = df.drop(columns=["METEOR", "ROUGE-L"])
 
     df.rename(columns=RENAME, inplace=True)
     highlight_metrics = [
@@ -382,7 +382,7 @@ def diff_table(filter_runs: Callable):
     df = pd.DataFrame(results)
     df = df.sort_values(by=["CIDEr"])
 
-    df = df.drop(columns=["METEOR", "ROUGE-L"])
+    # df = df.drop(columns=["METEOR", "ROUGE-L"])
 
     df.rename(columns=RENAME, inplace=True)
     highlight_metrics = [
@@ -525,7 +525,7 @@ def classify_table(filter_runs: Callable):
 
     df = pd.DataFrame(results)
 
-    df = df.drop(columns=["METEOR", "ROUGE-L"])
+    # df = df.drop(columns=["METEOR", "ROUGE-L"])
 
     df.rename(columns=RENAME, inplace=True)
     highlight_metrics = [

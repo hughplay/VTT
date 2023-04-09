@@ -32,6 +32,11 @@
 
 ## Currently Working
 
+- [ ] design a structure constrained model for VTT
+    - [x] provide definition
+    - [ ] design models
+
+
 ## 2022-11-19 23:55:32
 
 - [x] mask ratio ablation

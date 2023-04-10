@@ -90,33 +90,26 @@ def execute(command):
         p.wait()
 
 
-def prepare_parser():
-    parser = argparse.ArgumentParser(
-        description="The core script of experiment management."
-    )
-    parser.add_argument("action", nargs="?", default="enter")
-    parser.add_argument("-b", "--build", action="store_true", default=False)
-    parser.add_argument("--root", action="store_true", default=False)
-
-    return parser
-
-
 def main(args):
-    _set_env(verbose=(args.action == "prepare"))
-    _prepare_mount_files()
+    _set_env(verbose=(args.action == "start" or args.action == "startd"))
 
-    service_name = "project"
-    if args.action == "prepare":
-        command = "docker-compose up -d"
+    SHELL = "zsh" if args.service == "project" else "bash"
+
+    if args.action == "start" or args.action == "startd":
+        command = "docker-compose up"
+        if args.action == "startd":
+            command += " -d"
         if args.build:
             command += " --build --force-recreate"
+        command += f" {args.service}"
     elif args.action == "enter":
         if args.root:
-            command = f"docker-compose exec -u root {service_name} zsh"
+            command = f"docker-compose exec -u root {args.service} {SHELL}"
         else:
-            command = f"docker-compose exec {service_name} zsh"
+            command = f"docker-compose exec {args.service} {SHELL}"
     else:
         command = f"docker-compose {args.action}"
+    print(f"> {command}\n")
     execute(command)
 
 
@@ -192,22 +185,23 @@ def _set_env(env_path=DEFAULT_ENV_PATH, verbose=False):
                 cache_zsh_history.touch()
         e["CACHE_ZSH_HISTORY"] = str(cache_zsh_history)
 
-    e["COMPOSE_PROJECT_NAME"] = f"{e['PROJECT']}_{e['USER_NAME']}"
+    e["COMPOSE_PROJECT_NAME"] = f"{e['PROJECT']}_{e['USER_NAME']}".lower()
     e.save()
 
     if verbose:
-        print(f"Your setting ({env_path}):\n{e}")
+        print(f"Your setting ({env_path}):\n{e}\n")
     return e
 
 
-def _prepare_mount_files():
-    PATH_ZSH_HISTORY = Path("./docker/misc/.zsh_history")
-    if not PATH_ZSH_HISTORY.exists():
-        PATH_ZSH_HISTORY.touch()
-        print(f"{PATH_ZSH_HISTORY} is created.")
-
-
 if __name__ == "__main__":
-    parser = prepare_parser()
+    parser = argparse.ArgumentParser(
+        description="The core script of experiment management."
+    )
+    parser.add_argument("action", nargs="?", default="enter")
+    parser.add_argument("-b", "--build", action="store_true", default=False)
+    parser.add_argument("--root", action="store_true", default=False)
+    parser.add_argument("--service", default="project")
+
     args = parser.parse_args()
+
     main(args)

@@ -20,6 +20,7 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from src.dataset.text import SimpleTokenizer
+from src.utils.arraytool import mask_select, mask_unselect
 
 from .generate_utils import SimpleGenerationMixin
 from .x_transformers.x_transformers import (
@@ -33,39 +34,6 @@ logger = logging.getLogger(__name__)
 
 tokenizer = SimpleTokenizer()
 N_WORDS = len(tokenizer)
-
-
-def mask_select(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    """Select tensor elements where mask is True.
-
-    Args:
-        tensor: tensor of shape (B, ?)
-        mask: tensor of shape (B)
-
-    Returns:
-        tensor of shape (M, ?), where M is the number of True elements in mask
-    """
-    return tensor[mask]
-
-
-def mask_unselect(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    """Unselect tensor elements where mask is True.
-
-    Args:
-        tensor: tensor of shape (M, ?)
-        mask: tensor of shape (B)
-
-    Returns:
-        tensor of shape (B, ?), where False positions are filled with 0
-    """
-    tensor_size = list(tensor.size())
-    assert tensor_size[0] == mask.sum().item()
-    tensor_size[0] = mask.size(0)
-    full_tensor = torch.zeros(
-        tensor_size, dtype=tensor.dtype, device=tensor.device
-    )
-    full_tensor[mask] = tensor
-    return full_tensor
 
 
 class IndependentLSTMText(nn.Module, SimpleGenerationMixin):
@@ -795,6 +763,265 @@ class BiContextTransformerText(nn.Module, SimpleGenerationMixin):
         logits = rearrange(
             logits, "(B N) L d -> B N L d", B=B, N=N, L=L, d=N_WORDS
         )
+
+        if return_dict:
+            return {"logits": logits}
+
+        return logits
+
+
+class CLIPFusionDecoder(nn.Module, SimpleGenerationMixin):
+    """Implementation of the Transformer text decoder."""
+
+    def __init__(
+        self,
+        embedding_dim: int = 512,
+        hidden_dim: int = 512,
+        fusion_mode: str = "add",
+        heads: int = 8,
+        num_layers: int = 2,
+        dropout=0.1,
+        position_embedding: str = "relative",
+        max_words: int = 77,
+        tie_embedding: bool = False,
+        decoder_args: Dict[str, Any] = {},
+        generate_cfg: Dict[str, Any] = {},
+    ):
+        super().__init__()
+
+        assert fusion_mode in ["concat", "add"]
+
+        self.context_dim = embedding_dim
+        self.hidden_dim = hidden_dim
+        self.fusion_mode = fusion_mode
+        self.heads = heads
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.position_embedding = position_embedding
+        self.tie_embedding = tie_embedding
+        self.max_words = max_words
+        self.generate_cfg = generate_cfg
+
+        self.context_project = (
+            nn.Linear(embedding_dim, hidden_dim)
+            if embedding_dim != hidden_dim
+            else nn.Identity()
+        )
+
+        self.embed = nn.Embedding(N_WORDS, hidden_dim)
+        if self.fusion_mode == "concat":
+            self.fusion_project = nn.Linear(2 * hidden_dim, hidden_dim)
+        self.dropout_embed = nn.Dropout(p=dropout)
+
+        self.pos_embed = self.setup_position_embedding()
+        self.decoder = Decoder(
+            dim=hidden_dim,
+            depth=num_layers,
+            heads=heads,
+            attn_dropout=dropout,
+            ff_dropout=dropout,
+            rel_pos_bias=self.rel_pos_bias,
+            position_infused_attn=self.position_infused,
+            **decoder_args,
+        )
+        self.norm = nn.LayerNorm(hidden_dim)
+        self.to_logits = nn.Linear(hidden_dim, N_WORDS)
+        if tie_embedding:
+            self.to_logits.weight = self.embed.weight
+
+    def setup_position_embedding(self):
+        assert self.position_embedding in [
+            "fixed",  # Fixed sinusoidal positional embedding
+            "absolute",  # Learned positional encoding
+            "infused_fixed",  # Shortformer: https://arxiv.org/pdf/2012.15832.pdf
+            "relative",  # Simplified relative positional encoding from T5
+        ]
+        # these embeddings are injected to all layers
+        self.position_infused = self.position_embedding == "infused_fixed"
+        self.rel_pos_bias = self.position_embedding == "relative"
+
+        # first layer only
+        if self.position_embedding == "fixed":
+            pos_embed = FixedPositionalEmbedding(self.hidden_dim)
+        elif self.position_embedding == "absolute":
+            pos_embed = AbsolutePositionalEmbedding(
+                self.hidden_dim, self.max_words
+            )
+        else:
+            pos_embed = always(0)
+        return pos_embed
+
+    def forward(
+        self,
+        embedding: torch.Tensor,
+        label_ids: torch.Tensor = None,
+        label_mask: torch.Tensor = None,
+        return_dict: bool = True,
+    ):
+        if label_ids is None:
+            return self.generate(embedding=embedding)
+
+        B, L = label_ids.size()
+        assert label_mask.size() == label_ids.size()
+
+        # prepare inputs
+        labels = self.embed(label_ids)
+        embedding = self.context_project(embedding)
+        embedding = repeat(
+            embedding, "B d -> B L d", B=B, L=L, d=self.hidden_dim
+        )
+        if self.fusion_mode == "concat":
+            labels = torch.cat((embedding, labels), dim=-1)
+            labels = self.fusion_project(labels)
+        elif self.fusion_mode == "add":
+            labels = embedding + labels
+
+        # positional embedding
+        labels = labels + self.pos_embed(labels)
+        labels = self.dropout_embed(labels)
+
+        # decoder forward pass
+        output = self.decoder(labels, mask=label_mask)
+        output = self.norm(output)
+
+        # map into words
+        logits = self.to_logits(output)
+
+        if return_dict:
+            return {"logits": logits}
+
+        return logits
+
+
+class CLIPPrefixDecoder(nn.Module, SimpleGenerationMixin):
+    """Implementation of the Transformer text decoder."""
+
+    def __init__(
+        self,
+        embedding_dim: int = 512,
+        hidden_dim: int = 512,
+        fusion_mode: str = "add",
+        heads: int = 8,
+        num_layers: int = 2,
+        dropout=0.1,
+        position_embedding: str = "relative",
+        max_words: int = 77,
+        tie_embedding: bool = False,
+        decoder_args: Dict[str, Any] = {},
+        generate_cfg: Dict[str, Any] = {},
+    ):
+        super().__init__()
+
+        assert fusion_mode in ["concat", "add"]
+
+        self.prefix_dim = embedding_dim
+        self.hidden_dim = hidden_dim
+        self.fusion_mode = fusion_mode
+        self.heads = heads
+        self.num_layers = num_layers
+        self.dropout = dropout
+        self.position_embedding = position_embedding
+        self.tie_embedding = tie_embedding
+        self.max_words = max_words
+        self.generate_cfg = generate_cfg
+
+        self.context_project = (
+            nn.Linear(embedding_dim, hidden_dim)
+            if embedding_dim != hidden_dim
+            else nn.Identity()
+        )
+
+        self.embed = nn.Embedding(N_WORDS, hidden_dim)
+        if self.fusion_mode == "concat":
+            self.fusion_project = nn.Linear(2 * hidden_dim, hidden_dim)
+        self.dropout_embed = nn.Dropout(p=dropout)
+
+        self.pos_embed = self.setup_position_embedding()
+        self.decoder = Decoder(
+            dim=hidden_dim,
+            depth=num_layers,
+            heads=heads,
+            attn_dropout=dropout,
+            ff_dropout=dropout,
+            rel_pos_bias=self.rel_pos_bias,
+            position_infused_attn=self.position_infused,
+            **decoder_args,
+        )
+        self.norm = nn.LayerNorm(hidden_dim)
+        self.to_logits = nn.Linear(hidden_dim, N_WORDS)
+        if tie_embedding:
+            self.to_logits.weight = self.embed.weight
+
+    def setup_position_embedding(self):
+        assert self.position_embedding in [
+            "fixed",  # Fixed sinusoidal positional embedding
+            "absolute",  # Learned positional encoding
+            "infused_fixed",  # Shortformer: https://arxiv.org/pdf/2012.15832.pdf
+            "relative",  # Simplified relative positional encoding from T5
+        ]
+        # these embeddings are injected to all layers
+        self.position_infused = self.position_embedding == "infused_fixed"
+        self.rel_pos_bias = self.position_embedding == "relative"
+
+        # first layer only
+        if self.position_embedding == "fixed":
+            pos_embed = FixedPositionalEmbedding(self.hidden_dim)
+        elif self.position_embedding == "absolute":
+            pos_embed = AbsolutePositionalEmbedding(
+                self.hidden_dim, self.max_words
+            )
+        else:
+            pos_embed = always(0)
+        return pos_embed
+
+    def forward(
+        self,
+        embedding: torch.Tensor,
+        label_ids: torch.Tensor = None,
+        label_mask: torch.Tensor = None,
+        return_dict: bool = True,
+    ):
+        if label_ids is None:
+            return self.generate(embedding=embedding)
+
+        B, L = label_ids.size()
+        assert label_mask.size() == label_ids.size()
+
+        # prepare inputs
+        labels = self.embed(label_ids)
+        embedding = self.context_project(embedding)
+        embedding = repeat(
+            embedding, "B d -> B L d", B=B, L=L, d=self.hidden_dim
+        )
+        if self.fusion_mode == "concat":
+            labels = torch.cat((embedding, labels), dim=-1)
+            labels = self.fusion_project(labels)
+        elif self.fusion_mode == "add":
+            labels = embedding + labels
+        # labels = rearrange(
+        #     labels, "B L d -> (B N) L d", B=B, N=N, L=L, d=self.hidden_dim
+        # )
+        # label_mask = rearrange(label_mask, "B N L -> (B N) L", B=B, N=N, L=L)
+        # # *ignore empty lines
+        # trans_mask = rearrange(trans_mask, "B N -> (B N)", B=B, N=N)
+        # labels = mask_select(labels, trans_mask)
+        # label_mask = mask_select(label_mask, trans_mask)
+
+        # positional embedding
+        labels = labels + self.pos_embed(labels)
+        labels = self.dropout_embed(labels)
+
+        # decoder forward pass
+        output = self.decoder(labels, mask=label_mask)
+        output = self.norm(output)
+
+        # map into words
+        logits = self.to_logits(output)
+        # *fill back empty lines with zeros
+        # logits = mask_unselect(logits, trans_mask)
+        # logits = rearrange(
+        #     logits, "(B N) L d -> B N L d", B=B, N=N, L=L, d=N_WORDS
+        # )
 
         if return_dict:
             return {"logits": logits}

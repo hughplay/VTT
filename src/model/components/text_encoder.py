@@ -74,7 +74,9 @@ class TextCLIP(nn.Module):
             self.eval()
 
         B, L = label_ids.size()
-        assert L <= self.context_length
+        assert (
+            L <= self.context_length
+        ), f"{L} > {self.context_length}, please check your text length."
 
         if L != self.context_length:
             label_ids = torch.cat(

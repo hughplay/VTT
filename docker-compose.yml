@@ -13,20 +13,33 @@ services:
     image: ${PROJECT}:${USER_NAME}
     environment:
       - TZ=Asia/Shanghai
-      - TORCH_HOME=/data/pretrain/torch
+      - TORCH_HOME=/data/torch_model
       - TRANSFORMERS_CACHE=/data/pretrain/transformers
       - CLIP_CACHE=/data/pretrain/clip
 
+    # change hostname to docker
     hostname: docker
+    extra_hosts:
+      docker: 127.0.0.1
 
+    # Use the host system’s IPC namespace.
+    # https://docs.docker.com/engine/reference/run/#ipc-settings---ipc
     ipc: host
 
-    # directly mapping ports in container to host
+    # Use the host's network stack inside the container.
+    # (directly mapping ports in container to host)
+    # https://docs.docker.com/engine/reference/run/#network-settings
     network_mode: host
 
     working_dir: /project
 
-    command: ["sleep", "infinity"]
+    # command: ["sleep", "infinity"]
+    command: >
+      bash -c
+      "sudo rsync -a --stats --chown=${USER_NAME}:${USER_NAME} --ignore-existing
+      /${USER_NAME}_home_bak/ /home/${USER_NAME}
+      && . /home/${USER_NAME}/.bashrc
+      && sleep infinity"
 
     # mount the <directory in host> to the <directory in container>
     # add more mounts here if you need
@@ -36,5 +49,5 @@ services:
       - ${DATA_ROOT}:/data
       - ${LOG_ROOT}:/log
       - type: bind
-        source: ${CACHE_ZSH_HISTORY}
-        target: /home/${USER_NAME}/.zsh_history
+        source: ${CONTAINER_HOME}
+        target: /home/${USER_NAME}

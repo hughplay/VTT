@@ -46,10 +46,9 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
 # prevent many privileges issues.
 # ==================================================
 
-# COPY .localrc
-COPY misc/.localrc /root
-RUN echo ". ~/.localrc" >> /root/.zshrc
 
+# TUNA mirror for apt
+# RUN sed -i -e 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list
 
 # Add a user with the same UID and GID as the host user, to prevent privilege issues.
 ARG USER_ID=1011
@@ -64,12 +63,17 @@ RUN if [ $USER_NAME != "root" ] ; \
 
 # Copy installed configuration files from root to user
 COPY misc/init_workspace /usr/local/bin
+RUN chmod +x /usr/local/bin/init_workspace
 RUN /usr/local/bin/init_workspace --user ${USER_NAME} --home /home/${USER_NAME}
+
+
+# backup $HOME for reverse mounting $HOME
+RUN rsync -a /home/${USER_NAME}/ /${USER_NAME}_home_bak
 
 
 # Switch to the created user
 USER ${USER_NAME}
 
 
-# Set working directory to /workspace
-WORKDIR "/workspace"
+# Set working directory to /project
+WORKDIR "/project"

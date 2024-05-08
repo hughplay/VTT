@@ -27,14 +27,104 @@
     - select generation arguments
 - [ ] text generation
     - [ ] beam search
+- [ ] overall refinement?
+
 
 ## Currently Working
 
 - experiments:
-    - [ ] overall refinement?
+    - [x] key components
+    - [x] image encoder
+    - [x] classification ablation
+        - wclass_1_wcat_0_wtopic_0.25
+        - wclass_1_wcat_0.0625_wtopic_0
+    - [x] difference ablation
+        - early difference
+        - both difference
+        - early difference only
+        - late difference only
+
+- experiment analysis
+    - [ ] how difference features help
+        - attention heatmap
+    - [ ] how topic classification helps
+        - case study
+    - [ ] how MTM helps
+        - case study
+
+## 2022-09-20 10:28:01
+
+Time Table:
+
+- 09.19 21:00
+    - [x] check diff + classify experiment results
+- 09.20 10:00
+    - [x] check MTM all random results
+    - [x] check full experiment results*2
+
+TODO:
+- experiments:
+    - [x] integrate:
+        - final: ttnet_sota_v5_0.15_0.5_zero_wclass_0.25_wcat_0.1
+        1. [x] ttnet base, no additional tricks
+        2. [x] + ttnet diff
+            - [x] late
+            - [x] early
+            - [x] early + late
+            - no big difference, late is the best
+        3. [x] diff + mtm
+            - [x] 15% all zeros
+            - [x] 15% learned mask
+            - [x] MLM like strategies
+            - [x] different mask ratio
+                - [x] 5%
+                - [x] 10%
+                - [x] 15%
+                - [x] 20%
+                - [x] 25%
+            - [x] different sample mask prob
+                - [x] 100%
+                - [x] 50%
+                - [x] 25%
+                - [x] 75%
+            - the improvement is very small, hard to decide
+            - [x] 25% all random
+                - not better than all zero
+        4. [x] diff + classify
+        5. [x] diff + mtm + classify
+            - select mtm strategy
+                - 0.15 0.25 zero
+                - *0.15 0.5 zero
+                - 0.25 all zero
+                - *0.2 all zero
+                - *0.15 all zero
+                - *0.1 all zero
+            - select classify strategy
+                - wclass 0.125 wcat 0.1
+                - wclass 0.25 wcat 0.25
+                - *wclass 0.25 wcat 0.1
+                - *wclass 0.125 wcat 0.5
+                - wclass 0.125 wcat 0.25
+                - wclass 0.25 wcat 0.75
+    - [x] adjust detailed mask ratio
+        - detail:
+            - 10%: unchanged
+            - 80%: zero
+            - 10%: random
+        - start: 2022-09-15 16:19:13
+        - not better than before
     - [ ] trade-off between multiple objectives
         - [Multi-Task Learning as Multi-Objective Optimization](https://proceedings.neurips.cc/paper/2018/file/432aca3a1e345e339f35a30c8f65edce-Paper.pdf)
-- experiment analysis
+        - [x] adjust weights of topic classification
+            - 2
+            - 4
+            - 10
+            - 100
+            - 0.5
+            - 0.25
+            - 0.1
+            - 0.01
+
 
 ## 2022-09-15 10:58:01
 

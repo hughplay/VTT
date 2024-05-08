@@ -5,6 +5,7 @@ defaults:
 _target_: src.model.ttnet.TTNetDiff
 image_encoder: ViT-B/32
 diff_mode: early
+diff_only: false
 context_mode: fuse
 diff_first: false
 dim: 512

@@ -1,0 +1,18 @@
+\begin{table}[ht]
+\centering
+\small
+\caption{Performance on the test set of VTT dataset. T indicates Transformer, L indicates LSTM.}
+\label{tab:baseline}
+\begin{tabular}{lllrrrrr}
+\toprule
+Model & Architecture & Params & BLEU@4 & METEOR & ROUGE-L & CIDEr & BERT-S \\
+\midrule
+CST & InceptionV3 / L / L & 379M & 10.12 & 11.43 & 26.08 & 43.25 & 16.27 \\
+CST+ & CLIP / L / L & 661M & 14.00 & 19.31 & 38.28 & 84.90 & 25.98 \\
+GLACNet & ResNet152 / L / L & 128M & 42.76 & 45.25 & 52.96 & 381.31 & 60.11 \\
+GLACNet+ & CLIP / L / L & 373M & 55.24 & 59.48 & 66.25 & 508.19 & 71.13 \\
+TTNet$_\text{base}$ & CLIP / T / T & 368M & 55.70 & 60.49 & 67.05 & 515.28 & 72.22 \\
+TTNet & CLIP / T / T & 368M & \textbf{61.22} & \textbf{66.31} & \textbf{71.84} & \textbf{570.63} & \textbf{76.25} \\
+\bottomrule
+\end{tabular}
+\end{table}

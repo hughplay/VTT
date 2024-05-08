@@ -3,6 +3,7 @@ defaults:
   - generate_cfg: top_k_top_p
 
 _target_: src.model.glacnet.GLACNet
+image_encoder: resnet152
 dim: 512
 finetune_image_encoder: false
 num_lstm_layers: 2

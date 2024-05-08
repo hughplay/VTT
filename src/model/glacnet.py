@@ -9,6 +9,7 @@ from .components.text_decoder import ContextLSTMText
 class GLACNet(nn.Module):
     def __init__(
         self,
+        image_encoder="resnet152",
         dim=512,
         finetune_image_encoder=False,
         num_lstm_layers=2,
@@ -19,7 +20,7 @@ class GLACNet(nn.Module):
         super().__init__()
 
         self.image_encoder = ImageEncoder(
-            name="resnet152",
+            name=image_encoder,
             finetune=finetune_image_encoder,
             output_dim=dim,
             batch_norm=True,

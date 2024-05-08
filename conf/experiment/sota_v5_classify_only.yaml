@@ -1,24 +1,23 @@
 # @package _global_
-name: ttnet_sota_v4_diff
+name: ttnet_sota_v5_classify_only
 notes: >-
   TTNet:
   1. Fusion context into label_ids,
-  2. MTM
-  3. Use difference features
+  2. Force to predict the topic of the sample.
 
 defaults:
-  - override /model: ttnet_diff
+  - override /model: ttnet_mtm
   - override /model/generate_cfg: top_k_top_p_no_repeat
   - override /criterion: multitask
   - override /scheduler: linear_warmup
 
 model:
-  diff_mode: early_and_late
-  context_mode: attention
-  topic_head: false
-  category_head: false
+  topic_head: true
+  category_head: true
   image_encoder: ViT-L/14
-  mask_ratio: 0.15
+  learned_mask: false
+  mask_ratio: -1
+  sample_mask_prob: 0.5
   zero_prob: 1.0
   random_prob: 0.0
 
@@ -27,11 +26,11 @@ criterion:
     logit_shift: 0
     label_shift: -1
     w_construct: null
-    w_classify: null
-    w_category: null
-    w_topic: null
-  topic: false
-  category: false
+    w_classify: 0.25
+    w_category: 0.1
+    w_topic: 1.
+  topic: true
+  category: true
 
 pl_trainer:
   precision: 32

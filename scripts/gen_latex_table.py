@@ -1,6 +1,7 @@
 import argparse
 import sys
 from collections import defaultdict
+from pathlib import Path
 from typing import Callable
 
 import pandas as pd
@@ -27,24 +28,121 @@ def main(args):
         print(f"Find {len(runs)} runs in {entity}/{args.project}")
         return runs
 
-    style, caption = getattr(sys.modules[__name__], f"{args.table}_table")(
+    latex_str = getattr(sys.modules[__name__], f"{args.table}_table")(
         filter_runs
     )
+    print(latex_str)
 
-    print()
+
+def gen_latex(
+    style, caption, position="ht", small=False, save_path=None, **kwargs
+):
     print(r"\usepackage{booktabs}")
     print()
-    print(
-        style.to_latex(
-            caption=caption or args.caption,
-            hrules=True,
-            position=args.position,
-            position_float="centering",
+    latex_str = style.to_latex(
+        caption=caption,
+        hrules=True,
+        position=position,
+        position_float="centering",
+        **kwargs,
+    )
+    if small:
+        latex_str = latex_str.replace("\\centering", "\\centering\n\\small")
+    if save_path is not None:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        with save_path.open("w") as f:
+            f.write(latex_str)
+    return latex_str
+
+
+def baseline_table(filter_runs: Callable):
+    filters = {"tags": {"$in": ["final_base"]}}
+    runs = filter_runs(filters, sort=lambda run: run.summary["test/CIDEr"])
+    results = defaultdict(list)
+    for run in runs:
+        model_name = run.config["model/_target_"].split(".")[-1]
+
+        if "model/image_encoder" in run.config:
+            image_encoder = run.config["model/image_encoder"]
+        else:
+            image_encoder = "ResNet152"
+        image_encoder = image_encoder.replace("resnet", "ResNet")
+        if image_encoder == "ViT-L/14":
+            image_encoder = "CLIP"
+        elif image_encoder == "inception_v3":
+            image_encoder = "InceptionV3"
+        # results["$f_{image}$"].append(
+        #     f"{image_encoder} ({run.summary['model_size/image_encoder'] / 4:.0f}M)"
+        # )
+
+        if "TTNet" in model_name:
+            context_encoder = "T"
+        else:
+            context_encoder = "L"
+        # results["$f_{context}$"].append(
+        #     f"{context_encoder} ({run.summary['model_size/context_encoder'] / 4:.0f}M)"
+        # )
+
+        if "TTNet" in model_name:
+            text_decoder = "T"
+        else:
+            text_decoder = "L"
+        # results["$f_{decoder}$"].append(
+        #     f"{text_decoder} ({run.summary['model_size/decoder'] / 4:.0f}M)"
+        # )
+
+        if "TTNet" in model_name:
+            if model_name == "TTNetDiff":
+                model_name = "TTNet"
+            else:
+                model_name = "TTNet$_\\text{base}$"
+        elif image_encoder == "CLIP":
+            model_name += "+"
+
+        results["Model"].append(model_name)
+
+        results["Architecture"].append(
+            f"{image_encoder} / {context_encoder} / {text_decoder}"
         )
+        results["Params"].append(f"{run.summary['model_size/total'] / 4:.0f}M")
+
+        results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
+        results["METEOR"].append(run.summary["test/METEOR"] * 100)
+        results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
+        results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
+
+    df = pd.DataFrame(results)
+
+    # generating the table by using: Pandas DataFrame.style.to_latex
+    # https://pandas.pydata.org/docs/reference/api/pandas.io.formats.style.Styler.to_latex.html
+    highlight_metrics = ["BLEU@4", "METEOR", "ROUGE-L", "CIDEr", "BERT-S"]
+    style = df.style.highlight_max(
+        axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
+    )
+    style = style.format(precision=2).hide(axis="index")
+
+    str_latex = gen_latex(
+        style,
+        "Performance on the test set of VTT dataset. "
+        "T indicates Transformer, L indicates LSTM.",
+        save_path="docs/tables/baseline.tex",
+        small=True,
+        label="tab:baseline",
     )
 
+    lines = str_latex.split("\n")
+    new_lines = []
+    for line in lines:
+        if line.startswith("TTNet*"):
+            new_lines.append("\\midrule")
+        new_lines.append(line)
+    str_latex = "\n".join(new_lines)
+    return str_latex
 
-def main_table(filter_runs: Callable):
+
+def base_table(filter_runs: Callable):
     filters = {"tags": {"$in": ["baseline"]}}
     runs = filter_runs(filters, sort=lambda run: run.summary["test/CIDEr"])
     results = defaultdict(list)
@@ -67,7 +165,7 @@ def main_table(filter_runs: Callable):
     )
     style = style.format(precision=2).hide(axis="index")
 
-    return style, "Model performance on the VTT dataset"
+    return gen_latex(style, "Model performance on the VTT dataset")
 
 
 def classify_table(filter_runs: Callable):
@@ -111,7 +209,60 @@ def classify_table(filter_runs: Callable):
     )
     style = style.format(precision=2).hide(axis="index")
 
-    return style, "The effect of topic and category supervision"
+    return gen_latex(style, "The effect of topic and category supervision")
+
+
+def diff_table(filter_runs: Callable):
+    runs = filter_runs()
+    results = defaultdict(list)
+    for run in runs:
+        if (
+            "ttnet_diff" in run.config["name"]
+            or run.config["name"] == "baseline_ttnet_context_add"
+        ):
+            if "late" in run.config["name"]:
+                results["Diff"].append("Late")
+            elif "early" in run.config["name"]:
+                results["Diff"].append("Early")
+            elif "both" in run.config["name"]:
+                results["Diff"].append("Both")
+            else:
+                results["Diff"].append("-")
+
+            if "attention" in run.config["name"]:
+                results["Context Fusion"].append("Attention")
+            elif "cross" in run.config["name"]:
+                results["Context Fusion"].append("Cross Attention")
+            elif "fuse" in run.config["name"]:
+                results["Context Fusion"].append("Linear Projection")
+            else:
+                results["Context Fusion"].append("-")
+
+            if "first" in run.config["name"]:
+                results["Query"].append("difference")
+            elif "last" in run.config["name"]:
+                results["Query"].append("states")
+            else:
+                results["Query"].append("-")
+
+            results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
+            results["METEOR"].append(run.summary["test/METEOR"] * 100)
+            results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
+            results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+            results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
+
+    df = pd.DataFrame(results)
+    df = df.sort_values(by=["CIDEr"])
+
+    # generating the table by using: Pandas DataFrame.style.to_latex
+    # https://pandas.pydata.org/docs/reference/api/pandas.io.formats.style.Styler.to_latex.html
+    highlight_metrics = ["BLEU@4", "METEOR", "ROUGE-L", "CIDEr", "BERT-S"]
+    style = df.style.highlight_max(
+        axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
+    )
+    style = style.format(precision=2).hide(axis="index")
+
+    return gen_latex(style, "The effect of difference features")
 
 
 def multiple_objectives_table(filter_runs: Callable):
@@ -158,7 +309,7 @@ def multiple_objectives_table(filter_runs: Callable):
     )
     style = style.format(precision=2).hide(axis="index")
 
-    return style, "The effect of multiple objectives"
+    return gen_latex(style, "The effect of multiple objectives")
 
 
 def image_encoder_table(filter_runs: Callable):
@@ -200,7 +351,9 @@ def image_encoder_table(filter_runs: Callable):
     )
     style = style.format(precision=2).hide(axis="index")
 
-    return style, "Performance of different image encoders on the VTT dataset"
+    return gen_latex(
+        style, "Performance of different image encoders on the VTT dataset"
+    )
 
 
 if __name__ == "__main__":

@@ -15,7 +15,8 @@ import logging
 from typing import Any, Dict
 
 import torch
-from einops import rearrange
+import torch.nn.functional as F
+from einops import rearrange, repeat
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
@@ -467,3 +468,99 @@ class AttentionBiDiffContext(TransformerContext):
             )
         )
         return {"context": features, "attention": attn_maps}
+
+
+class PastFutureContext(nn.Module):
+
+    EPSILON = 1e-8
+
+    def __init__(
+        self,
+        input_dim: int = 512,
+        hidden_dim: int = 512,
+        normalize_weight: bool = False,
+    ):
+        super().__init__()
+
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.normalize_weight = normalize_weight
+
+        self.project_weight = nn.Linear(self.input_dim, self.hidden_dim)
+        self.project_feature = nn.Linear(self.hidden_dim * 3, self.hidden_dim)
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        states_mask: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+
+        B, N, d = features.size()
+
+        # B N N
+        weight = torch.einsum(
+            "bid,bjd->bij", self.project_weight(features), features
+        )
+
+        # B N N
+        mask = torch.matmul(
+            states_mask.unsqueeze(2).float(), states_mask.unsqueeze(1).float()
+        )
+        past_mask = (
+            repeat(
+                torch.tril(
+                    torch.ones(N, N, device=features.device), diagonal=-1
+                ).float(),
+                "i j -> b i j",
+                b=B,
+                i=N,
+                j=N,
+            )
+            * mask
+        )
+        future_mask = (
+            repeat(
+                torch.triu(
+                    torch.ones(N, N, device=features.device), diagonal=1
+                ).float(),
+                "i j -> b i j",
+                b=B,
+                i=N,
+                j=N,
+            )
+            * mask
+        )
+        past_weight = weight * past_mask
+        past_weight = past_weight / (
+            past_mask.sum(dim=2, keepdim=True) + self.EPSILON
+        )
+        future_weight = weight * future_mask
+        future_weight = future_weight / (
+            future_mask.sum(dim=2, keepdim=True) + self.EPSILON
+        )
+
+        # B N N d
+        repeat_features = repeat(
+            features, "B N d -> B r N d", B=B, N=N, r=N, d=d
+        )
+
+        if self.normalize_weight:
+            past_features = (
+                repeat_features
+                * (F.softmax(past_weight, dim=-1) * past_mask)[..., None]
+            ).sum(dim=2)
+            future_features = (
+                repeat_features
+                * (F.softmax(future_weight, dim=-1) * future_mask)[..., None]
+            ).sum(dim=2)
+        else:
+            past_features = (repeat_features * past_weight[..., None]).sum(
+                dim=2
+            )
+            future_features = (repeat_features * future_weight[..., None]).sum(
+                dim=2
+            )
+
+        context = torch.cat((past_features, features, future_features), dim=-1)
+        context = self.project_feature(context)
+        return {"context": context}

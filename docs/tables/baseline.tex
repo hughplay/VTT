@@ -1,18 +1,19 @@
-\begin{table}[ht]
+\begin{table}[t]
 \centering
 \small
-\caption{Performance on the test set of VTT dataset. T indicates Transformer, L indicates LSTM.}
+\caption{Performance on the test set of VTT dataset. B@4/M/R/C/S/BS are short for BLEU@4 / METEOR / ROUGE-L / CIDEr / SPICE / BERT-Score. The architecture shows image encoder / context encoder / transformation decoder. * indicates to use CLIP for a fair comparison.}
 \label{tab:baseline}
-\begin{tabular}{lllrrrrr}
+\begin{tabular}{lrrrrrrrr}
 \toprule
-Model & Architecture & Params & BLEU@4 & METEOR & ROUGE-L & CIDEr & BERT-S \\
+Model & Architecture & Params & B@4 & M & R & C & S & BS \\
 \midrule
-CST & InceptionV3 / L / L & 379M & 10.12 & 11.43 & 26.08 & 43.25 & 16.27 \\
-CST+ & CLIP / L / L & 661M & 14.00 & 19.31 & 38.28 & 84.90 & 25.98 \\
-GLACNet & ResNet152 / L / L & 128M & 42.76 & 45.25 & 52.96 & 381.31 & 60.11 \\
-GLACNet+ & CLIP / L / L & 373M & 55.24 & 59.48 & 66.25 & 508.19 & 71.13 \\
-TTNet$_\text{base}$ & CLIP / T / T & 368M & 55.70 & 60.49 & 67.05 & 515.28 & 72.22 \\
-TTNet & CLIP / T / T & 368M & \textbf{61.22} & \textbf{66.31} & \textbf{71.84} & \textbf{570.63} & \textbf{76.25} \\
+CST & InceptionV3 / LSTM / LSTM & 379M & 10.09 & 11.39 & 25.98 & 43.22 & 9.28 & 16.30 \\
+CST* & CLIP / LSTM / LSTM & 661M & 13.96 & 19.21 & 38.11 & 84.60 & 21.85 & 25.66 \\
+GLACNet & ResNet152 / LSTM / LSTM & 128M & 42.77 & 45.26 & 52.98 & 381.48 & 45.33 & 60.12 \\
+DenseCap* & CLIP / LSTM / LSTM & 361M & 48.25 & 52.00 & 59.79 & 439.68 & 53.73 & 66.30 \\
+GLACNet* & CLIP / LSTM / LSTM & 373M & 55.24 & 59.48 & 66.25 & 508.18 & 60.21 & 71.13 \\
+TTNet$_\text{Base}$ & CLIP / Transformer / Transformer & 368M & 55.68 & 60.47 & 67.05 & 515.12 & 61.45 & 72.22 \\
+TTNet & CLIP / Transformer / Transformer & 368M & \textbf{61.22} & \textbf{66.31} & \textbf{71.84} & \textbf{570.63} & \textbf{66.20} & \textbf{76.25} \\
 \bottomrule
 \end{tabular}
 \end{table}

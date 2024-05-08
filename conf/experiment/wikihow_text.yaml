@@ -1,0 +1,28 @@
+# @package _global_
+name: wikihow_text_base
+notes: >
+  Training a text decoder to reconstruct text from CLIP embeddings.
+
+defaults:
+  - override /dataset: wikihow
+  - override /pipeline: decoding
+  - override /model: clip_text_decoder
+  - override /criterion: text
+
+criterion:
+  loss:
+    logit_shift: 0
+    label_shift: -1
+
+pl_trainer:
+  precision: 32
+
+model:
+  encoder_name: ViT-B/32
+  num_decoder_layers: 2
+  generate_cfg:
+    max_words: ${dataset.max_words}
+    min_words: 1
+
+dataset:
+  embedding_model: ${model.encoder_name}

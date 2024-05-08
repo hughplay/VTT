@@ -29,9 +29,98 @@
     - [ ] beam search
 - [ ] overall refinement?
 
+- [ ] overall refinement?
+
 
 ## Currently Working
 
+- [ ] design a structure constrained model for VTT
+    - [x] provide definition
+    - [ ] design models
+        - [ ] image encoder decoder
+            - [x] stable diffusion
+            - [ ] dalle2 (dalle2-laion)
+        - [ ] text encoder decoder
+            - [ ] decap:
+            - [ ] preprocess data
+              -  WikiHow: https://github.com/mahnazkoupaee/WikiHow-Dataset
+              - [x] split dataset, filter out tokens greater than 77
+              - [x] wikihow text to clip embedding
+                - lmdb-embeddings is very convenient
+            - issue: testing results seems to be not good, test on coin descriptions
+              - [ ] add a coin text dataset, and added it to the test data module
+
+
+## 2022-11-19 23:55:32
+
+- [x] mask ratio ablation
+    - start: 2022-11-09 10:26:39
+    - expected end: 2022-11-09 22:00:00
+    - [x] mask table
+- [x] sample mask ablation
+    - start: 2022-11-09 22:59:23
+    - expected end: 2022-11-10 10:30:00
+- [x] add SPICE
+    - [SPICE: Semantic Propositional Image Caption Evaluation](https://arxiv.org/pdf/1607.08822.pdf)
+    - [ ] silent the print from SPICE
+- [x] human evaluation specification
+    - [Best practices for the human evaluation of automatically generated text](https://aclanthology.org/W19-8643.pdf)
+- [x] human evaluation program
+- [x] cross task annotation
+    - Make Bicerin, oueddsUmOHI
+
+
+## 2022.09.29
+
+Time Table:
+
+- 09.20 24:00
+    - [x] check key components results
+    - [x] check image encoder results
+- 09.21 morning
+    - [x] check difference results
+
+- experiments:
+    - [ ] add two baseline from dense video captioning
+        - [x] DCE: "Dense-captioning events in videos"
+            - FuturePastContext
+            - ContextLSTM (from GLACNet)
+        - [ ] MT: End-to-End Dense Video Captioning with Masked Transformer
+            - https://arxiv.org/pdf/1804.00819v1.pdf
+        - [ ] Bidirectional Attentive Fusion with Context Gating for Dense Video Captioning
+            - https://arxiv.org/pdf/1804.00100v2.pdf
+        - [ ] PDVC:
+        - AI.M3: https://arxiv.org/pdf/2006.07896.pdf
+        - BMT, MDVC, iPerceive, TSP, SDVC
+    - [x] key components
+    - [x] image encoder
+    - [x] classification ablation
+        - wclass_1_wcat_0_wtopic_0.25
+        - wclass_1_wcat_0.0625_wtopic_0
+    - [x] difference ablation
+        - early difference
+        - both difference
+        - early difference only
+        - late difference only
+- experiment analysis
+    - [ ] how difference features help
+        - attention heatmap
+    - [ ] how topic classification helps
+        - case study
+    - [ ] how MTM helps
+        - case study
+
+## 2022-09-20 10:28:01
+
+Time Table:
+
+- 09.19 21:00
+    - [x] check diff + classify experiment results
+- 09.20 10:00
+    - [x] check MTM all random results
+    - [x] check full experiment results*2
+
+TODO:
 - experiments:
     - [x] key components
     - [x] image encoder

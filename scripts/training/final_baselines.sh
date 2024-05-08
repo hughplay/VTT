@@ -30,3 +30,14 @@ python train.py experiment=baseline_glacnet \
     dataset.transform_cfg.train.transform_mode="clip" \
     model.image_encoder="ViT-L/14" \
     logging.wandb.tags="[final_base]"
+
+# Base DenseCap
+python train.py experiment=baseline_densecap \
+    name="baseline_densecap" \
+    logging.wandb.tags="[final_base]"
+
+# densecap normalize weight
+python train.py experiment=baseline_densecap \
+    model.normalize_weight=true \
+    name="baseline_densecap_norm" \
+    logging.wandb.tags="[final_base]"

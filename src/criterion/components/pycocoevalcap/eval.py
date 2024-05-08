@@ -1,9 +1,10 @@
 __author__ = "tylin"
-from .bleu.bleu import Bleu
-from .cider.cider import Cider
-from .meteor.meteor import Meteor
-from .rouge.rouge import Rouge
-from .tokenizer.ptbtokenizer import PTBTokenizer
+from bleu.bleu import Bleu
+from cider.cider import Cider
+from meteor.meteor import Meteor
+from rouge.rouge import Rouge
+from spice.spice import Spice
+from tokenizer.ptbtokenizer import PTBTokenizer
 
 
 class COCOEvalCap:
@@ -13,7 +14,7 @@ class COCOEvalCap:
         self.imgToEval = {}
         self.coco = coco
         self.cocoRes = cocoRes
-        self.params = {"image_id": cocoRes.getImgIds()}
+        self.params = {"image_id": coco.getImgIds()}
 
     def evaluate(self):
         imgIds = self.params["image_id"]
@@ -41,23 +42,23 @@ class COCOEvalCap:
             (Meteor(), "METEOR"),
             (Rouge(), "ROUGE_L"),
             (Cider(), "CIDEr"),
+            (Spice(), "SPICE"),
         ]
 
         # =================================================
         # Compute scores
         # =================================================
-        eval = {}
         for scorer, method in scorers:
             print("computing %s score..." % (scorer.method()))
             score, scores = scorer.compute_score(gts, res)
             if type(method) == list:
                 for sc, scs, m in zip(score, scores, method):
                     self.setEval(sc, m)
-                    self.setImgToEvalImgs(scs, imgIds, m)
+                    self.setImgToEvalImgs(scs, gts.keys(), m)
                     print("%s: %0.3f" % (m, sc))
             else:
                 self.setEval(score, method)
-                self.setImgToEvalImgs(scores, imgIds, method)
+                self.setImgToEvalImgs(scores, gts.keys(), method)
                 print("%s: %0.3f" % (method, score))
         self.setEvalImgs()
 

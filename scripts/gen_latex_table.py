@@ -7,6 +7,30 @@ from typing import Callable
 import pandas as pd
 import wandb
 
+CHECKMARK = r"$\surd$"
+RENAME = {
+    "BLEU@4": "B@4",
+    "METEOR": "M",
+    "ROUGE-L": "R",
+    "CIDEr": "C",
+    "SPICE": "S",
+    "BERT-S": "BS",
+}
+
+# https://github.com/rwightman/pytorch-image-models/blob/master/results/results-imagenet.csv
+IMAGENET_ACC = {
+    "InceptionV3": 77.438,
+    "ResNet152": 82.818,
+    "BEiT-L": 87.476,
+    "Swin-L": 86.320,
+    "ViT-L": 85.844,
+    "RN50": 73.3,
+    "RN101": 75.7,
+    "ViT-B/32": 76.1,
+    "ViT-B/16": 80.2,
+    "ViT-L/14": 83.9,
+}
+
 
 def main(args):
 
@@ -148,18 +172,62 @@ def base_table(filter_runs: Callable):
     results = defaultdict(list)
     for run in runs:
         model_name = run.config["model/_target_"].split(".")[-1]
+
+        if "model/image_encoder" in run.config:
+            image_encoder = run.config["model/image_encoder"]
+        else:
+            image_encoder = "ResNet152"
+        image_encoder = image_encoder.replace("resnet", "ResNet")
+        if image_encoder == "ViT-L/14":
+            image_encoder = "CLIP"
+        elif image_encoder == "inception_v3":
+            image_encoder = "InceptionV3"
+        # results["$f_{image}$"].append(
+        #     f"{image_encoder} ({run.summary['model_size/image_encoder'] / 4:.0f}M)"
+        # )
+
+        if "TTNet" in model_name:
+            context_encoder = "Transformer"
+        else:
+            context_encoder = "LSTM"
+        # results["$f_{context}$"].append(
+        #     f"{context_encoder} ({run.summary['model_size/context_encoder'] / 4:.0f}M)"
+        # )
+
+        if "TTNet" in model_name:
+            text_decoder = "Transformer"
+        else:
+            text_decoder = "LSTM"
+        # results["$f_{decoder}$"].append(
+        #     f"{text_decoder} ({run.summary['model_size/decoder'] / 4:.0f}M)"
+        # )
+
+        if "TTNet" in model_name:
+            if model_name == "TTNetDiff":
+                model_name = "TTNet"
+            else:
+                model_name = "TTNet$_\\text{Base}$"
+        elif image_encoder == "CLIP":
+            model_name += "*"
+
         results["Model"].append(model_name)
+
+        results["Architecture"].append(
+            f"{image_encoder} / {context_encoder} / {text_decoder}"
+        )
+        results["Params"].append(f"{run.summary['model_size/total'] / 4:.0f}M")
+
         results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
         results["METEOR"].append(run.summary["test/METEOR"] * 100)
         results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
         results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["SPICE"].append(run.summary["test/SPICE"] * 100)
         results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
 
     df = pd.DataFrame(results)
 
-    # generating the table by using: Pandas DataFrame.style.to_latex
-    # https://pandas.pydata.org/docs/reference/api/pandas.io.formats.style.Styler.to_latex.html
-    highlight_metrics = ["BLEU@4", "METEOR", "ROUGE-L", "CIDEr", "BERT-S"]
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = list(RENAME.values())
     style = df.style.highlight_max(
         axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
     )
@@ -171,28 +239,117 @@ def base_table(filter_runs: Callable):
 def classify_table(filter_runs: Callable):
     filters = {"tags": {"$in": ["multitask"]}}
     runs = filter_runs(filters, sort=lambda run: run.summary["test/CIDEr"])
+
+    name_mapping = {
+        "inception_v3": "InceptionV3",
+        "beit_large_patch16_224": "BEiT-L",
+        "swin_large_patch4_window7_224": "Swin-L",
+        "vit_large_patch16_224": "ViT-L",
+        "resnet152": "ResNet152",
+    }
+
     results = defaultdict(list)
+    encoders = []
+    pretrained = []
     for run in runs:
-        name = run.config["name"]
-        if "no_classify" in name or "baseline" in name:
-            name = "w/o category, topic"
-        elif "no_category" in name:
-            name = "w/o category"
-        elif "no_topic" in name:
-            name = "w/o topic"
-        elif "category" in name:
-            name = "w/ category"
-        elif "topic" in name:
-            name = "w/ topic"
-        elif "reconstruct" in name:
-            name = "w/ reconstruct"
+        encoder_name = (
+            run.config["model/image_encoder"]
+            if "model/image_encoder" in run.config
+            else "ViT-B/32"
+        )
+        if encoder_name in name_mapping:
+            encoder_name = name_mapping[encoder_name]
+        # results["Image Encoder"].append(encoder_name)
+        if "/" in encoder_name or encoder_name.startswith("RN"):
+            pretrained.append(
+                "\\rotatebox[origin=c]{90}{\\makecell"
+                "{Image-text\\\\Pretrained\\footnotemark[2]}}"
+            )
         else:
-            name = "w/ category, topic"
+            pretrained.append(
+                "\\rotatebox[origin=c]{90}{\\makecell"
+                "{ImageNet\\\\Pretrained\\footnotemark[1]}}"
+            )
+        encoders.append(encoder_name)
+        results["Params"].append(
+            f"{run.summary['model_size/image_encoder'] / 4:.0f}M"
+        )
+        results["Acc"].append(IMAGENET_ACC[encoder_name])
+        results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
+        results["METEOR"].append(run.summary["test/METEOR"] * 100)
+        results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
+        results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
+        results["pretrained"].append(pretrained[-1])
+        results["param"].append(run.summary["model_size/total"] / 4)
 
-        if "sota" in run.config["name"]:
-            name += " (SOTA)"
+    df = pd.DataFrame(results, index=[pretrained, encoders])
+    df = df.sort_values(by=["pretrained", "param"], ascending=[False, True])
+    df = df.drop(columns=["pretrained", "param"])
+    df = df.drop(columns=["METEOR", "ROUGE-L"])
 
-        results[" "].append(name)
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
+    style = df.style.highlight_max(
+        axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
+    )
+    style = style.format(precision=2)
+
+    str_latex = gen_latex(
+        style,
+        "Performance of different image encoders on the VTT dataset",
+        label="tab:image_encoder",
+        save_path="docs/tables/image_encoder.tex",
+        column_format="llrr|rrr",
+    )
+
+    lines = str_latex.split("\n")
+    new_lines = []
+    for line in lines:
+        if "RN50" in line:
+            new_lines.append("\\midrule")
+        elif "Params" in line:
+            columns = line.split("&")
+            columns = ["\\multicolumn{2}{c}{Image Encoder}"] + columns[2:]
+            line = "&".join(columns)
+        new_lines.append(line)
+    str_latex = "\n".join(new_lines)
+    # str_latex = str_latex.replace("caption", "captionof{table}")
+    # str_latex = str_latex.replace(r"\begin{table}[ht]", r"\begin{minipage}[c]{0.5\textwidth}")
+    # str_latex = str_latex.replace(r"\end{table}", r"\end{minipage}")
+    return str_latex
+
+
+def key_table(filter_runs: Callable):
+    filters = {"tags": {"$in": ["key"]}}
+    runs = filter_runs(filters)
+    results = defaultdict(list)
+    checkmark = r"$\surd$"
+    for run in runs:
+        if "model/diff_mode" in run.config:
+            results["Diff."].append(checkmark)
+        else:
+            results["Diff."].append("")
+
+        if (
+            "model/mask_ratio" in run.config
+            and run.config["model/mask_ratio"] > 0
+        ):
+            results["MTM"].append(checkmark)
+        else:
+            results["MTM"].append("")
+
+        if (
+            "criterion/loss/w_classify" in run.config
+            and run.config["criterion/loss/w_classify"] is not None
+            and run.config["criterion/loss/w_classify"] != "None"
+        ):
+            results["Aux."].append(checkmark)
+        else:
+            results["Aux."].append("")
+
         results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
         results["METEOR"].append(run.summary["test/METEOR"] * 100)
         results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
@@ -200,10 +357,31 @@ def classify_table(filter_runs: Callable):
         results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
 
     df = pd.DataFrame(results)
+    df["n_key"] = (df == checkmark).sum(axis=1)
+    df.sort_values(
+        by=["n_key", "Diff.", "MTM", "Aux."],
+        ascending=[True, False, False, False],
+        inplace=True,
+    )
+    df = df[
+        [
+            "Diff.",
+            "MTM",
+            "Aux.",
+            "BLEU@4",
+            "METEOR",
+            "ROUGE-L",
+            "CIDEr",
+            "BERT-S",
+        ]
+    ]
 
-    # generating the table by using: Pandas DataFrame.style.to_latex
-    # https://pandas.pydata.org/docs/reference/api/pandas.io.formats.style.Styler.to_latex.html
-    highlight_metrics = ["BLEU@4", "METEOR", "ROUGE-L", "CIDEr", "BERT-S"]
+    # df = df.drop(columns=["METEOR", "ROUGE-L"])
+
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
     style = df.style.highlight_max(
         axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
     )
@@ -270,28 +448,23 @@ def multiple_objectives_table(filter_runs: Callable):
     runs = filter_runs(filters)
     results = defaultdict(list)
     for run in runs:
-        results["Model"].append(run.config["model/image_encoder"])
-        checkmark = r"$\surd$"
+        if "model/diff_only" in run.config and run.config["model/diff_only"]:
+            results["State"].append("")
+        else:
+            results["State"].append(CHECKMARK)
 
-        if "w_mtm" in run.config["name"]:
-            results["MTM"].append(checkmark)
+        if "model/diff_mode" in run.config:
+            if run.config["model/diff_mode"] == "early":
+                results["Difference"].append("early")
+            elif run.config["model/diff_mode"] == "late":
+                results["Difference"].append("late")
+            elif run.config["model/diff_mode"] == "early_and_late":
+                results["Difference"].append("early + late")
+            else:
+                results["Difference"].append("None")
         else:
-            results["MTM"].append("")
-        if "w_category" in run.config["name"]:
-            results["Category"].append(checkmark)
-        else:
-            results["Category"].append("")
-        if "w_topic" in run.config["name"]:
-            results["Topic"].append(checkmark)
-        else:
-            results["Topic"].append("")
+            results["Difference"].append("")
 
-        if "w_diff" in run.config["name"]:
-            results["Diff"].append(checkmark)
-        else:
-            results["Diff"].append("")
-
-        # results["name"].append(run.config["name"])
         results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
         results["METEOR"].append(run.summary["test/METEOR"] * 100)
         results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
@@ -299,11 +472,103 @@ def multiple_objectives_table(filter_runs: Callable):
         results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
 
     df = pd.DataFrame(results)
-    df = df.sort_values(by=["Model", "CIDEr"])
+    df = df.sort_values(by=["CIDEr"])
 
-    # generating the table by using: Pandas DataFrame.style.to_latex
-    # https://pandas.pydata.org/docs/reference/api/pandas.io.formats.style.Styler.to_latex.html
-    highlight_metrics = ["BLEU@4", "METEOR", "ROUGE-L", "CIDEr", "BERT-S"]
+    # df = df.drop(columns=["METEOR", "ROUGE-L"])
+
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
+    style = df.style.highlight_max(
+        axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
+    )
+    style = style.format(precision=2).hide(axis="index")
+
+    return gen_latex(
+        style,
+        "Ablation study on difference features.",
+        label="tab:diff",
+        save_path="docs/tables/diff.tex",
+    )
+
+
+def mask_table(filter_runs: Callable):
+    filters = {
+        "$and": [
+            {"tags": {"$in": ["sota_v5"]}},
+            {"tags": {"$in": ["mask"]}},
+        ],
+    }
+    runs = filter_runs(filters)
+    results = defaultdict(list)
+    for run in runs:
+        mask_ratio = run.config["model/mask_ratio"]
+        if mask_ratio < 0:
+            mask_ratio = 0.0
+        results["Mask Ratio"].append(f"{mask_ratio * 100:.0f}%")
+
+        results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
+        results["METEOR"].append(run.summary["test/METEOR"] * 100)
+        results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
+        results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
+
+    df = pd.DataFrame(results)
+    df = df.sort_values(by=["Mask Ratio"])
+
+    df = df.drop(columns=["METEOR", "ROUGE-L"])
+
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
+    style = df.style.highlight_max(
+        axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
+    )
+    style = style.format(precision=2).hide(axis="index")
+
+    return gen_latex(
+        style,
+        "Ablation on the mask ratio.",
+        label="tab:mask_ratio",
+        save_path="docs/tables/mask_ratio.tex",
+        column_format="crrr",
+        position="t",
+    )
+
+
+def mask_sample_table(filter_runs: Callable):
+    filters = {
+        "$and": [
+            {"tags": {"$in": ["sota_v5"]}},
+            {"tags": {"$in": ["sample_mask"]}},
+        ],
+    }
+    runs = filter_runs(filters)
+    results = defaultdict(list)
+    for run in runs:
+        if run.config["model/mask_ratio"] < 0:
+            sample_mask_prob = 0.0
+        else:
+            sample_mask_prob = run.config["model/sample_mask_prob"]
+        results["Sample Ratio"].append(f"{sample_mask_prob*100:.0f}%")
+
+        results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
+        results["METEOR"].append(run.summary["test/METEOR"] * 100)
+        results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
+        results["CIDEr"].append(run.summary["test/CIDEr"] * 100)
+        results["BERT-S"].append(run.summary["test/BERTScore"] * 100)
+
+    df = pd.DataFrame(results)
+    df = df.sort_values(by=["Sample Ratio"])
+
+    df = df.drop(columns=["METEOR", "ROUGE-L"])
+
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
     style = df.style.highlight_max(
         axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
     )
@@ -316,25 +581,23 @@ def image_encoder_table(filter_runs: Callable):
 
     filters = {"tags": {"$in": ["encoder"]}}
     runs = filter_runs(filters, sort=lambda run: run.summary["test/CIDEr"])
-
-    name_mapping = {
-        "inception_v3": "InceptionV3",
-        "beit_large_patch16_224": "BEiT-L",
-        "swin_large_patch4_window7_224": "Swin-L",
-        "vit_large_patch16_224": "ViT-L",
-        "resnet152": "ResNet152",
-    }
-
     results = defaultdict(list)
+    exps = []
     for run in runs:
-        encoder_name = (
-            run.config["model/image_encoder"]
-            if "model/image_encoder" in run.config
-            else "ViT-B/32"
-        )
-        if encoder_name in name_mapping:
-            encoder_name = name_mapping[encoder_name]
-        results["Image Encoder"].append(encoder_name)
+        if (
+            "criterion/loss/w_category" in run.config
+            and run.config["criterion/loss/w_category"] > 0
+        ):
+            results["Category"].append(CHECKMARK)
+        else:
+            results["Category"].append("")
+        if (
+            "criterion/loss/w_topic" in run.config
+            and run.config["criterion/loss/w_topic"] > 0
+        ):
+            results["Topic"].append(CHECKMARK)
+        else:
+            results["Topic"].append("")
         results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
         results["METEOR"].append(run.summary["test/METEOR"] * 100)
         results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
@@ -343,9 +606,12 @@ def image_encoder_table(filter_runs: Callable):
 
     df = pd.DataFrame(results)
 
-    # generating the table by using: Pandas DataFrame.style.to_latex
-    # https://pandas.pydata.org/docs/reference/api/pandas.io.formats.style.Styler.to_latex.html
-    highlight_metrics = ["BLEU@4", "METEOR", "ROUGE-L", "CIDEr", "BERT-S"]
+    # df = df.drop(columns=["METEOR", "ROUGE-L"])
+
+    df.rename(columns=RENAME, inplace=True)
+    highlight_metrics = [
+        val for val in list(RENAME.values()) if val in df.columns
+    ]
     style = df.style.highlight_max(
         axis=0, subset=highlight_metrics, props="textbf:--rwrap;"
     )
@@ -364,6 +630,5 @@ if __name__ == "__main__":
     parser.add_argument(
         "--caption", default="Model performance on the VTT dataset."
     )
-    parser.add_argument("--position", default="ht")
     args = parser.parse_args()
     main(args)

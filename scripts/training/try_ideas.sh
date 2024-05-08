@@ -75,3 +75,9 @@ python train.py experiment=sota_v4_diff \
     criterion.topic=false \
     name=ttnet_sota_v4_w_mtm2_no_topic_w_diff \
     logging.wandb.tags="[sota_v4]"
+
+# densecap normalize weight
+python train.py experiment=baseline_densecap \
+    model.normalize_weight=true \
+    name="baseline_densecap_norm" \
+    logging.wandb.tags="[final_base]"

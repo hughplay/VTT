@@ -10,6 +10,7 @@ from PIL import Image
 from torchvision.transforms import (
     CenterCrop,
     Compose,
+    Lambda,
     Normalize,
     Resize,
     ToPILImage,
@@ -49,23 +50,23 @@ def forward_transform(n_px=224, mode="clip"):
     torchvison.transforms.Compose
         torchvision transform
     """
+    transforms = [
+        Resize(n_px, interpolation=InterpolationMode.BICUBIC),
+        CenterCrop(n_px),
+        lambda image: image.convert("RGB"),
+        ToTensor(),
+    ]
 
     if mode == "clip":
-        mean, std = CLIP_MEAN, CLIP_STD
+        transforms.append(Normalize(CLIP_MEAN, CLIP_STD))
     elif mode == "imagenet":
-        mean, std = IMAGENET_MEAN, IMAGENET_STD
+        transforms.append(Normalize(IMAGENET_MEAN, IMAGENET_STD))
+    elif mode == "stable_diffusion":
+        transforms.append(Lambda(lambd=lambda x: x * 2 - 1))
     else:
         raise ValueError(f"mode {mode} is not supported")
 
-    return Compose(
-        [
-            Resize(n_px, interpolation=InterpolationMode.BICUBIC),
-            CenterCrop(n_px),
-            lambda image: image.convert("RGB"),
-            ToTensor(),
-            Normalize(mean, std),
-        ]
-    )
+    return Compose(transforms)
 
 
 def inverse_transform(mode="clip"):
@@ -75,19 +76,22 @@ def inverse_transform(mode="clip"):
     torchvision.transforms.Compose
         torchvision transform
     """
+    transforms = [
+        ToPILImage(),
+    ]
     if mode == "clip":
-        mean, std = CLIP_INVERSE_MEAN, CLIP_INVERSE_STD
+        transforms.insert(0, Normalize(CLIP_INVERSE_MEAN, CLIP_INVERSE_STD))
     elif mode == "imagenet":
-        mean, std = IMAGENET_INVERSE_MEAN, IMAGENET_INVERSE_STD
+        transforms.insert(
+            0, Normalize(IMAGENET_INVERSE_MEAN, IMAGENET_INVERSE_STD)
+        )
+    elif mode == "stable_diffusion":
+        transforms.insert(0, Lambda(lambd=lambda x: (x + 1) / 2))
+        transforms.insert(1, Lambda(lambd=lambda x: x.clamp(0, 1)))
     else:
         raise ValueError(f"mode {mode} is not supported")
 
-    return Compose(
-        [
-            Normalize(mean, std),
-            ToPILImage(),
-        ]
-    )
+    return Compose(transforms)
 
 
 class ConsistentTransform:

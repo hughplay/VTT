@@ -50,3 +50,11 @@ python train.py experiment=sota_v5_final \
 python train.py experiment=sota_v5_final \
     model.image_encoder="ViT-B/16" name="ttnet_sota_v5_ViT-B-16" \
     logging.wandb.tags="[sota_v5,full,encoder]"
+
+# Finetune
+python train.py experiment=sota_v5_final \
+    name="ttnet_sota_v5_finetune" \
+    model.finetune_image_encoder=True \
+    dataset.batch_size=4 \
+    pl_trainer.devices=8 \
+    logging.wandb.tags="[sota_v5,full,finetune]"

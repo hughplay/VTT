@@ -5,6 +5,8 @@ log/
 data/
 conf/local/default.yaml
 docker/misc/.zsh_history
+container_home/
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

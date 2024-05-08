@@ -1,0 +1,12 @@
+defaults:
+  - _self_
+  - generate_cfg: top_k_top_p
+
+_target_: src.model.densecap.DenseCap
+image_encoder: ViT-L/14
+dim: 512
+finetune_image_encoder: false
+num_lstm_layers: 2
+embed_dropout: 0.1
+lstm_dropout: 0.5
+normalize_weight: false

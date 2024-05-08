@@ -1,0 +1,5 @@
+tmp/
+cache/
+!lib/
+stanford-corenlp-3.6.0-models.jar
+stanford-corenlp-3.6.0.jar

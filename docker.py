@@ -1,14 +1,14 @@
-"""Run exmperiments in the docker container. Quick Start:
+"""Run experiments in the docker container. Quick Start:
 
 # Step 1. Install docker-compose in your workspace.
 pip install docker-compose
 # Step 2. Build docker image and start docker container once.
-python docker.py prepare --build
+python docker.py startd --build
 # Step 3. Enter the docker container at any time, start experiments now.
-python docker.py [enter]
+python docker.py
 
 # Enter the docker container using root account.
-python docker.py [enter] --root
+python docker.py --root
 """
 import argparse
 import os
@@ -18,10 +18,11 @@ from collections import OrderedDict
 from pathlib import Path
 
 DEFAULT_ENV_PATH = ".env"
-DEFAULT_PROJECT_NAME = "mnist"
+DEFAULT_PROJECT_NAME = "dockerlab"
 DEFAULT_CODE_ROOT = "."
 DEFAULT_DATA_ROOT = "data"
 DEFAULT_LOG_ROOT = "log"
+DEFAULT_CONTAINER_HOME = "container_home"
 
 
 class Env:
@@ -89,33 +90,36 @@ def execute(command):
         p.wait()
 
 
-def prepare_parser():
+def main():
     parser = argparse.ArgumentParser(
         description="The core script of experiment management."
     )
     parser.add_argument("action", nargs="?", default="enter")
     parser.add_argument("-b", "--build", action="store_true", default=False)
     parser.add_argument("--root", action="store_true", default=False)
+    parser.add_argument("--service", default="project")
 
-    return parser
+    args = parser.parse_args()
 
+    _set_env(verbose=(args.action == "start" or args.action == "startd"))
 
-def main(args):
-    _set_env(verbose=(args.action == "prepare"))
-    _prepare_mount_files()
+    SHELL = "zsh" if args.service == "project" else "bash"
 
-    service_name = "project"
-    if args.action == "prepare":
-        command = "docker-compose up -d"
+    if args.action == "start" or args.action == "startd":
+        command = "docker-compose up"
+        if args.action == "startd":
+            command += " -d"
         if args.build:
             command += " --build --force-recreate"
+        command += f" {args.service}"
     elif args.action == "enter":
         if args.root:
-            command = f"docker-compose exec -u root {service_name} zsh"
+            command = f"docker-compose exec -u root {args.service} {SHELL}"
         else:
-            command = f"docker-compose exec {service_name} zsh"
+            command = f"docker-compose exec {args.service} {SHELL}"
     else:
         command = f"docker-compose {args.action}"
+    print(f"> {command}\n")
     execute(command)
 
 
@@ -173,22 +177,31 @@ def _set_env(env_path=DEFAULT_ENV_PATH, verbose=False):
                 log_root.mkdir(parents=True)
         e["LOG_ROOT"] = str(log_root)
 
-    e["COMPOSE_PROJECT_NAME"] = f"{e['PROJECT']}_{e['USER_NAME']}"
+    if "CONTAINER_HOME" not in e:
+        container_home = Path(
+            _get_value_from_stdin(
+                f"directory to be mounted to {e['USER_NAME']}",
+                default=DEFAULT_CONTAINER_HOME,
+            )
+        ).resolve()
+        if not container_home.exists():
+            if (
+                _get_value_from_stdin(
+                    f"`{container_home}` does not exist in your machine. Create?",
+                    default="yes",
+                )
+                == "yes"
+            ):
+                container_home.mkdir(parents=True, exist_ok=True)
+        e["CONTAINER_HOME"] = str(container_home)
+
+    e["COMPOSE_PROJECT_NAME"] = f"{e['PROJECT']}_{e['USER_NAME']}".lower()
     e.save()
 
     if verbose:
-        print(f"Your setting ({env_path}):\n{e}")
+        print(f"Your setting ({env_path}):\n{e}\n")
     return e
 
 
-def _prepare_mount_files():
-    PATH_ZSH_HISTORY = Path("./docker/misc/.zsh_history")
-    if not PATH_ZSH_HISTORY.exists():
-        PATH_ZSH_HISTORY.touch()
-        print(f"{PATH_ZSH_HISTORY} is created.")
-
-
 if __name__ == "__main__":
-    parser = prepare_parser()
-    args = parser.parse_args()
-    main(args)
+    main()

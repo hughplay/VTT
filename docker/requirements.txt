@@ -46,6 +46,7 @@ nltk
 ftfy
 bert_score==0.3.11
 wordcloud
+google-generativeai
 
 # =============================================
 # Utils

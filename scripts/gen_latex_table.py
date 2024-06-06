@@ -350,6 +350,10 @@ def key_table(filter_runs: Callable):
         else:
             results["Aux."].append("")
 
+        if "test/SPICE" in run.summary:
+            results["SPICE"].append(run.summary["test/SPICE"] * 100)
+        else:
+            results["SPICE"].append(0)
         results["BLEU@4"].append(run.summary["test/BLEU_4"] * 100)
         results["METEOR"].append(run.summary["test/METEOR"] * 100)
         results["ROUGE-L"].append(run.summary["test/ROUGE"] * 100)
@@ -372,6 +376,7 @@ def key_table(filter_runs: Callable):
             "METEOR",
             "ROUGE-L",
             "CIDEr",
+            "SPICE",
             "BERT-S",
         ]
     ]

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # ==================================================
 # Based on deepbase/project:codebase
 # You can find the Dockerfile from:
@@ -9,7 +10,7 @@
 FROM deepbase/project:codebase
 
 # TUNA Mirror (optional)
-COPY misc/sources.list.ubuntu20.04 /etc/apt/sources.list
+# RUN sed -i -e 's/archive.ubuntu.com/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list
 RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-packages --no-install-recommends \
     ffmpeg \
     openjdk-8-jdk \
@@ -24,7 +25,26 @@ RUN apt-get update && apt-get install -y --allow-downgrades --allow-change-held-
 
 # Setup TUNA mirror (optional)
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-COPY misc/.condarc /root/.condarc
+RUN cat <<EOT >> ~/.condarc
+channels:
+  - defaults
+show_channel_urls: true
+channel_alias: https://mirrors.tuna.tsinghua.edu.cn/anaconda
+default_channels:
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/pro
+  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/msys2
+custom_channels:
+  conda-forge: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud
+  msys2: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud
+  bioconda: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud
+  menpo: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud
+  pytorch: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud
+  simpleitk: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud
+  nvidia: https://mirrors.sustech.edu.cn/anaconda-extra/cloud
+EOT
 
 # By default, install packages from `requirements.txt` with pip.
 COPY requirements.txt /tmp/requirements.txt

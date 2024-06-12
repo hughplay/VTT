@@ -1,111 +1,146 @@
-# DeepCodebase
+# Visual Transformation Telling
 
 Official repository for ["Visual Transformation Telling"](https://github.com/hughplay/VTT).
 
-![A fancy image here](docs/_static/imgs/logo.svg)
+<!-- ![A fancy image here](docs/_static/imgs/vtt_illustration.png) -->
+<img src="docs/_static/imgs/vtt_illustration.png" width="500">
 
-**Figure:** *DeepCodebase for Deep Learning. (Provide a fancy image here to impress your audience.)*
+**Figure:** **Visual Transformation Telling (VTT).** Given *states*, which are images extracted from videos, the goal is to reason and describe *transformations* between every two adjacent states.
 
-> **DeepCodebase for Deep Learning** <br>
-> Xin Hong <br>
-> *Published on Github*
+> **Visual Transformation Telling** <br>
+> Wanqing Cui*, Xin Hong*, Yanyan Lan, Liang Pang, Jiafeng Guo, Xueqi Cheng <br>
+> (* equal contribution)
+<!-- > *Published on Github* -->
 
-[![](docs/_static/imgs/project.svg)](https://hongxin2019.github.io)
-[![](https://img.shields.io/badge/-code-green?style=flat-square&logo=github&labelColor=gray)](https://github.com/hughplay/DeepCodebase)
-[![](https://img.shields.io/badge/arXiv-1234.5678-b31b1b?style=flat-square)](https://arxiv.org)
-[![](https://img.shields.io/badge/Open_in_Colab-blue?style=flat-square&logo=google-colab&labelColor=gray)](https://colab.research.google.com/github/googlecolab/colabtools/blob/master/notebooks/colab-github-demo.ipynb)
+<!-- [![](docs/_static/imgs/project.svg)](https://hongxin2019.github.io) -->
+[![](https://img.shields.io/badge/-code-green?style=flat-square&logo=github&labelColor=gray)](https://github.com/hughplay/VTT)
+[![](https://img.shields.io/badge/arXiv-2305.01928-b31b1b?style=flat-square)](https://arxiv.org/abs/2305.01928)
 [![](https://img.shields.io/badge/PyTorch-ee4c2c?style=flat-square&logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
 [![](https://img.shields.io/badge/-Lightning-792ee5?style=flat-square&logo=pytorchlightning&logoColor=white)](https://pytorchlightning.ai/)
 [![](docs/_static/imgs/hydra.svg)](https://hydra.cc)
 
-## News
+<!-- ## News
 
-- [x] **[2022-07-21]** Initial release of the DeepCodebase.
+- [x] **[2024-06-21]** Initial release of the DeepCodebase. -->
 
 ## Description
 
-DeepCodebase is a codebase/template for deep learning researchers, so that do
-experiments and releasing projects becomes easier.
-**Do right things with suitable tools!**
+**Motivation:** Humans can naturally reason from superficial state differences (e.g. ground wetness) to transformations descriptions (e.g. raining) according to their life experience.
+In this paper, we propose a new visual reasoning task to test this transformation reasoning ability in real-world scenarios, called **V**isual **T**ransformation **T**elling (VTT).
 
-This README.md is meant to be the template README of the releasing project.
-**[Read the Development Guide](./DEVELOPMENT.md) to realize and start to use DeepCodebase**
+**Task:** Given a series of states (i.e. images), VTT requires to describe the transformation occurring between every two adjacent states.
+
 
 If you find this code useful, please star this repo and cite us:
 
 ```
-@inproceedings{deepcodebase,
-  title={DeepCodebase for Deep Learning},
-  author={Xin Hong},
-  booktitle={Github},
-  year={2022}
+@misc{cui2024visual,
+      title={Visual Transformation Telling},
+      author={Wanqing Cui and Xin Hong and Yanyan Lan and Liang Pang and Jiafeng Guo and Xueqi Cheng},
+      year={2024},
+      eprint={2305.01928},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
 }
 ```
 
-## Environment Setup
 
-This project recommends using [docker](https://www.docker.com/) to run experiments.
+## Dataset
 
-### Quick Start
+VTT dataset can be downloaded at [Google Drive](https://drive.google.com/file/d/1o6-Ev0lmOwzyUAIUqlGOjfJJ1eIcxLzJ).
 
-The following steps are to build a docker image for this project and run it.
+## Environment Setups
 
-**Step 1.** Install docker-compose in your workspace.
-```sh
-# (set PyPI mirror is optional)
-pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-pip install docker-compose
+**1. Clone the repository**
+
+```bash
+git clone https://github.com/bowen-gao/ProFSA.git
+cd ProFSA
 ```
 
-**Step 2.** Build a docker image and start a docker container.
-```sh
-python docker.py prepare --build
+**2. Prepare the dataset and pretrained molecular encoder weights**
+
+Download the [profsa.tar.gz](https://drive.google.com/file/d/1lFBe4ak7QXS4LS-qAemvWJatT9AL8huf/view?usp=drive_link) and decompress it under the `data` directory.
+
+```
+mkdir data
+cd data
+unzip  vtt.tar.gz
 ```
 
-**Step 3.** Enter the docker container at any time, start experiments now.
-```sh
-python docker.py [enter]
+
+After decompress the package, the directory structure should be like this:
+
+```
+.
+`-- dataset
+    `-- vtt
+        |-- states
+        |  |-- xxx.png
+        |   `-- ...
+        `-- meta
+            `-- vtt.jsonl
 ```
 
-### Data Preparation
+**3. Build the docker image and launch the container**
 
-MNIST will be automatically downloaded to `DATA_ROOT` and prepared by `torch.dataset.MNIST`.
+```bash
+make init
+```
 
+For the first time, it will prompt you the following configurations (enter for the default values):
+```
+Give a project name [profsa]:
+Code root to be mounted at /project [.]:
+Data root to be mounted at /data [./data]:
+Log root to be mounted at /log [./data/log]:
+directory to be mounted to xxx [container_home]:
+`/home/hongxin/code/profsa/profsa_git/container_home` does not exist in your machine. Create? [yes]:
+```
+
+After `Creating xxx ... done`, the environment is ready. You can run the following command to go inside the container:
+
+```bash
+make in
+```
 
 ## Training
 
-Commonly used training commands:
+In the container, train a classical model (e.g. TTNet) by running:
 
-```sh
-# training a mnist_lenet on GPU 0
-python train.py experiment=mnist_lenet devices="[0]"
+```bash
+python train.py experiment=sota_v5_full
+```
 
-# training a mnist_lenet on GPU 1
-python train.py experiment=mnist_dnn devices="[1]"
+> Note:
+You may need to learn some basic knowledge about [Pytorch Lightning](https://pytorchlightning.ai/) and [Hydra](https://hydra.cc/) to better understand the code.
 
-# training a mnist_lenet on two gpus
-python train.py experiment=mnist_lenet devices="[2,3]" name="mnist lenet 2gpus"
+Tune LLaVA with LoRA:
+
+```bash
+zsh scripts/training/train_vtt_concat.sh
 ```
 
 ## Testing
+To test a trained classical model, you can run:
 
-Commonly used testing commands:
-
-```sh
-# * test the model, <logdir> has been printed twice (start & end) when training
-python test.py <logdir>
-# test the model, with multiple config overrides, e.g.: to test multiple datasets
-python test.py <logdir> --update_func test_original test_example
-# update wandb, and prefix the metrics
-python test.py --update_func test_original test_example --prefix original example --update_wandb
-# generate LaTex Tables
-python scripts/generate_latex_table.py
+```bash
+python tset.py <train_log_dir>
 ```
 
-## Acknowledgement
+To test MLMs (e.g. Gemini Pro Vision), you can run:
 
-Many best practices are learned from [Lightning-Hydra-Template](https://github.com/ashleve/lightning-hydra-template), thanks to the maintainers of this project.
+```bash
+python test_gemini.py
+```
 
-## License
+(modify paths accordingly)
 
-[MIT License](./LICENSE)
+
+## LICENSE
+
+The code is licensed under the [MIT license](./LICENSE) and the VTT dataset is licensed under the <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution-NonCommercial 4.0 International License</a>.
+
+<br>
+
+*This is a project based on [DeepCodebase](https://github.com/hughplay/DeepCodebase) template.*

@@ -137,6 +137,12 @@ python test_gemini.py
 (modify paths accordingly)
 
 
+## Detailed results
+
+- human evaluation results: [docs/lists/human_results](docs/lists/human_results)
+- MLMs predictions: [docs/lists/llm_results/](docs/lists/llm_results)
+
+
 ## LICENSE
 
 The code is licensed under the [MIT license](./LICENSE) and the VTT dataset is licensed under the <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution-NonCommercial 4.0 International License</a>.

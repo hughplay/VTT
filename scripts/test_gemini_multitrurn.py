@@ -19,21 +19,50 @@ class GeminiPredictor:
 Your task is to first describe the event in the picture, and then I will show you every two adjacent panels (states)
 one by one, you need to write the corresponding transformation between them, to describe what happened to cause one
 state to transform into another based on your understanding of the whole event and the two given states. Each
-transformation must be a phrase. Here are some examples from other pictures: "put steak on grill", "release liquid",
+transformation must be a brief phrase. Here are some examples from other pictures: "put steak on grill", "release liquid",
 "add whipped cream"...
 
 Describe the event in the picture:
 """
-    TRANS_PROMPT = """Describe the No.{} transformation between No.{} and No.{} states with a phrase:"""
+    TRANS_PROMPT = """Describe the No.{} transformation between No.{} and No.{} states with a brief phrase:"""
 
     def __init__(self, api_key, model="gemini-pro-vision"):
         self.api_key = api_key
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model)
+        generation_config = {
+            "temperature": 1,  # Creativity (0: deterministic, 1: high variety)
+            "top_p": 0.95,  # Focus on high-probability words
+            "top_k": 64,  # Consider top-k words for each step
+            "max_output_tokens": 8192,  # Limit response length
+            "response_mime_type": "text/plain",  # Output as plain text
+        }
+        safety_settings = [
+            # Gemini's safety settings for blocking harmful content
+            # (Set to "BLOCK_NONE" for no blocking)
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_NONE",
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_NONE",
+            },
+        ]
+        self.model = genai.GenerativeModel(
+            model,
+            safety_settings=safety_settings,
+            generation_config=generation_config,
+        )
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {api_key}",
         }
+
         # https://colab.research.google.com/drive/1kgr7HayLXCxMgh6IZl1PLw1WPuknMEBt?usp=sharing#scrollTo=RtTQqi1HC8O7
         self.history = []
 
@@ -41,15 +70,17 @@ Describe the event in the picture:
         """Uploads a file to Gemini for use in prompts."""
         file = genai.upload_file(path, mime_type=mime_type)
         if DEBUG:
-            print(f"Uploaded file '{file.display_name}' as: {file.uri}")
+            print(f"Uploaded file '{path}' as: {file.uri}")
         return file
 
     def generate(self):
         num_retry = 0
+        max_retry = 10
         while True:
             try:
                 response = self.model.generate_content(self.history)
-                text = response.text.strip().strip("**")
+                text = response.text.strip().strip('"').strip("**")
+                self.history.append(response.candidates[0].content)
 
                 if text:
                     break
@@ -57,21 +88,22 @@ Describe the event in the picture:
                 if DEBUG:
                     print("Empty response, retrying...")
 
-                num_retry += 1
-                if num_retry > 3:
-                    if DEBUG:
-                        print("Max retry reached, returning empty string")
-                    break
-
             except Exception as e:
                 if DEBUG:
                     print(f"Error: {e}")
                     print("Retrying...")
-                time.sleep(1)
+                time.sleep(5)
+
+            num_retry += 1
+            if num_retry > max_retry:
+                if DEBUG:
+                    print("Max retry reached, returning empty string")
+                text = ""
+                break
+
         if DEBUG:
             print(text)
 
-        self.history.append(response.candidates[0].content)
         return text
 
     def predict(self, images_path):

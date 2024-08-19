@@ -137,3 +137,18 @@ python scripts/eval_llm.py \
     --processed_path /data/vtt/llm_result/llava-v15-7b_concat_lora_50epoch_output.jsonl \
     --result_path /data/vtt/llm_result/llm_result.jsonl \
     --gpu
+
+
+python scripts/eval_llm_multiturn.py \
+    --pred_path /data/vtt/llm_multiturn/vtt_test_samples_gemini1.5_multiturn.jsonl \
+    --gt_path /data/vtt/meta/vtt.jsonl \
+    --result_path /data/vtt/llm_multiturn_result/llm_multiturn.jsonl \
+    --detail_path /data/vtt/llm_multiturn_result/gemini1.5_multiturn.jsonl \
+    --gpu
+
+python scripts/eval_llm_multiturn.py \
+    --pred_path /data/vtt/llm_multiturn/vtt_test_samples_gemini1.5_multiturn_all.jsonl \
+    --gt_path /data/vtt/meta/vtt.jsonl \
+    --result_path /data/vtt/llm_multiturn_result/llm_multiturn.jsonl \
+    --detail_path /data/vtt/llm_multiturn_result/gemini1.5_multiturn_all.jsonl \
+    --gpu

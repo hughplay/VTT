@@ -24,15 +24,12 @@ transformation must be a brief phrase. Here are some examples from other picture
 
 Describe the event in the picture:
 """
-    TRANS_PROMPT = """Describe the No.{} transformation between No.{} and No.{} states with a brief phrase:"""
+    TRANS_PROMPT = """Describe the No.{} transformation between No.{} and No.{} states with only a brief phrase, e.g. "put steak on grill":"""
 
     def __init__(self, api_key, model="gemini-pro-vision"):
         self.api_key = api_key
         genai.configure(api_key=api_key)
         generation_config = {
-            "temperature": 1,  # Creativity (0: deterministic, 1: high variety)
-            "top_p": 0.95,  # Focus on high-probability words
-            "top_k": 64,  # Consider top-k words for each step
             "max_output_tokens": 8192,  # Limit response length
             "response_mime_type": "text/plain",  # Output as plain text
         }
@@ -79,7 +76,7 @@ Describe the event in the picture:
         while True:
             try:
                 response = self.model.generate_content(self.history)
-                text = response.text.strip().strip('"').strip("**")
+                text = response.text.strip().strip(".").strip('"').strip("**")
                 self.history.append(response.candidates[0].content)
 
                 if text:
@@ -92,7 +89,7 @@ Describe the event in the picture:
                 if DEBUG:
                     print(f"Error: {e}")
                     print("Retrying...")
-                time.sleep(5)
+                time.sleep(2)
 
             num_retry += 1
             if num_retry > max_retry:
@@ -107,6 +104,7 @@ Describe the event in the picture:
         return text
 
     def predict(self, images_path):
+        self.history = []
         num_panels = len(images_path)
 
         files = [
@@ -181,15 +179,16 @@ def eval_gemini(
         except Exception as e:
             print(f"Error: {e}")
         finally:
-            time.sleep(5)
+            time.sleep(2)
 
 
 if __name__ == "__main__":
     # model = "gemini-pro-vision"
     model = "gemini-1.5-pro-latest"
-    test_samples_path = "/data/reason/vtt/meta/human_test_samples.jsonl"
+    # test_samples_path = "/data/reason/vtt/meta/human_test_samples.jsonl"
+    test_samples_path = "/data/reason/vtt/meta/vtt.jsonl"
     # save_path = "/data/reason/vtt/llm_raw/vtt_test_samples_gemini_multi.jsonl"
-    save_path = "/data/reason/vtt/llm_multiturn/vtt_test_samples_gemini1.5_multiturn.jsonl"
+    save_path = "/data/reason/vtt/llm_multiturn/vtt_test_samples_gemini1.5_multiturn_all.jsonl"
     image_root = "/data/reason/vtt/states"
 
     eval_gemini(

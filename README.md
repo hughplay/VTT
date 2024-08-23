@@ -54,13 +54,13 @@ VTT dataset can be downloaded at [Google Drive](https://drive.google.com/file/d/
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/bowen-gao/ProFSA.git
-cd ProFSA
+git clone https://github.com/hughplay/VTT.git
+cd VTT
 ```
 
 **2. Prepare the dataset and pretrained molecular encoder weights**
 
-Download the [profsa.tar.gz](https://drive.google.com/file/d/1lFBe4ak7QXS4LS-qAemvWJatT9AL8huf/view?usp=drive_link) and decompress it under the `data` directory.
+Download the [vtt.tar.gz](https://drive.google.com/file/d/1o6-Ev0lmOwzyUAIUqlGOjfJJ1eIcxLzJ) and decompress it under the `data` directory.
 
 ```
 mkdir data
@@ -90,12 +90,12 @@ make init
 
 For the first time, it will prompt you the following configurations (enter for the default values):
 ```
-Give a project name [profsa]:
+Give a project name [vtt]:
 Code root to be mounted at /project [.]:
 Data root to be mounted at /data [./data]:
 Log root to be mounted at /log [./data/log]:
 directory to be mounted to xxx [container_home]:
-`/home/hongxin/code/profsa/profsa_git/container_home` does not exist in your machine. Create? [yes]:
+`/home/hongxin/code/vtt/container_home` does not exist in your machine. Create? [yes]:
 ```
 
 After `Creating xxx ... done`, the environment is ready. You can run the following command to go inside the container:
